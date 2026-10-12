@@ -84,12 +84,12 @@ Current configuration:
 [tool.mypy]
 python_version = "3.13"
 strict = true
-files = ["main.py", "src/dcf_agent"]
+files = ["main.py", "src/dcf_agent", "scripts"]
 exclude = ['^\.venv/', '^\.uv-cache/']
 ```
 
 Strict mode requires annotations and enables stronger checks. The checks cover
-`main.py` and the application package under `src/dcf_agent/`.
+`main.py`, the application package under `src/dcf_agent/`, and developer scripts.
 
 The starter function now declares `def main() -> None`, meaning it returns no
 value. Run the checks with `uv run mypy`.
@@ -150,8 +150,8 @@ uv run pre-commit run --all-files
 
 If a hook fails, the commit stops. Fix the issue, stage any corrected files, and
 commit again. Formatting hooks currently report issues without fixing them.
-Pytest is not included in the hooks. Local hooks do not replace CI; CI has not
-been configured yet. `--all-files` operates on Git-tracked files, so newly
+Pytest is not included in the hooks. Run [local checks](11-local-checks.md)
+for tests, lint, formatting, and types. `--all-files` operates on Git-tracked files, so newly
 created files need to be added to Git before that command includes them.
 
 ## 6. Application libraries installed for Phase 0
@@ -176,10 +176,12 @@ them does not configure cloud tracing or implement our agent graph.
 | Package | Role |
 |---|---|
 | `types-PyYAML` | Supply type information that helps mypy check PyYAML usage |
+| `types-psutil` | Supply type information for memory and CPU measurements |
 | `psutil` | Measure process memory and inspect hardware during planned local LLM benchmarks |
 
-Both are in the development dependency group. The benchmarking script has not
-been implemented yet.
+These are in the development dependency group. `scripts/benchmark_llm.py`
+measures local model speed and memory; `scripts/smoke_llm.py` exercises live
+wrapper calls. See the model setup guide and benchmark report.
 
 ## 8. Generated files and current verification
 
@@ -189,7 +191,8 @@ generated tool data. `.env` is also ignored to keep local secrets out of Git.
 
 At setup time, dependency imports, Ruff linting, Ruff formatting, mypy, and
 pre-commit configuration validation passed. The Git hook was installed.
-Contract validation tests have since been added. CI is not configured yet.
+Contract validation tests have since been added. Checks run locally; no GitHub
+Actions workflow is required or configured.
 
 The application package structure now exists under `src/dcf_agent/`. See the
-repository README for its layout. Data contracts are the next implementation step.
+repository README for its layout and implemented contracts.

@@ -4,6 +4,14 @@ A local DCF valuation assistant. See [the documentation](docs/README.md) for the
 architecture, agents, stack, and roadmap. Phase 0 is in progress; valuation
 functionality has not been implemented yet.
 
+Typed application configuration is available through `dcf_agent.config.load_config`.
+See [the configuration guide](docs/07-configuration.md). Provisional model tags
+are configured; mock mode still defaults on. See [model setup](docs/09-model-setup.md)
+and [local benchmark measurements](docs/benchmarks.md).
+
+The [local LLM wrapper](docs/08-local-llm-wrapper.md) supports typed responses,
+one repair retry, serialized requests, disk caching, and explicit mock fixtures.
+
 ## Development
 
 Use Python 3.13 and uv, from the repository root:
@@ -18,6 +26,12 @@ uv run pre-commit install
 ```
 
 Run contract validation tests with `uv run pytest`; no network or Ollama is needed.
+
+Run lint, formatting, type checks, and offline tests locally before accepting
+changes. See [the local checks guide](docs/11-local-checks.md).
+Local model roles now use only Qwen3 1.7B and 4B; see
+[the configuration guide](docs/07-configuration.md) and
+[lighter-model measurements](docs/benchmarks-light.md).
 
 ## Package structure
 

@@ -1,0 +1,18 @@
+# Lighter CPU assignments; see docs/benchmarks-light.md. Financial roles are provisional.
+roles:
+  router: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 80}
+  data: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 100}
+  filings: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 160}
+  normalizer: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 200}
+  forecast: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 300, temperature: 0.3}
+  wacc: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 150}
+  comps: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 100}
+  critic: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 300}
+  reporter: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 250}
+runtime:
+  threads: 6 # Measured physical CPU core count.
+  queue: single_worker
+  max_loaded_models: 1
+  num_parallel: 1
+  response_cache: true
+  timeout_seconds: 180.0

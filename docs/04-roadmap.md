@@ -7,7 +7,7 @@ Time estimates assume one developer working part-time (about 10-15 h/week) and a
 Build the **deterministic core first** (data → normalized financials → DCF → Excel), verify it without any LLM, then add agents one at a time. If the core is wrong, no amount of agent sophistication helps.
 
 ```
-Phase 0  Foundations            ─► contracts, repo, CI, local LLM running
+Phase 0  Foundations            ─► contracts, repo, local checks, local LLM running
 Phase 1  Deterministic core     ─► EDGAR → Normalized → DCF → Excel (no LLM)     ★ most important
 Phase 2  Router + Data + WACC   ─► Info mode (Q&A) works, first LangGraph
 Phase 3  Filings RAG + Normalizer + Gate 1
@@ -22,15 +22,15 @@ Phase 7  Extensions
 ## Phase 0: Foundations (about 1 week)
 
 **Deliverables**
-- Repo scaffold (layout in `01-architecture.md`), `uv` env, ruff/mypy/pytest, pre-commit, CI (GitHub Actions free tier or local).
+- Repo scaffold (layout in `01-architecture.md`), `uv` env, ruff/mypy/pytest, pre-commit, local verification (no GitHub Actions).
 - Pydantic contracts: `Provenance`, `Sourced`, `RawFinancials`, `NormalizedFinancials`, `ForecastAssumptions`, `WACCResult`, `ValuationResult`, `CritiqueReport`, `ValuationState`.
-- Ollama running one S (3-4B) and one M (7-8B) 4-bit model with `OLLAMA_MAX_LOADED_MODELS=1`; a `scripts/benchmark_llm.py` that records prompt-processing and generation tokens/s and peak RAM for each candidate model.
+- Ollama running the approved lighter 1.7B and 4B 4-bit models, one resident at a time, with `OLLAMA_MAX_LOADED_MODELS=1`; a `scripts/benchmark_llm.py` that records prompt-processing and generation tokens/s and peak RAM for each candidate model. These replace the original 4B/8B plan to reduce desktop memory pressure.
 - `llm/` wrapper with schema-constrained output, a repair retry, a single-worker request queue, an on-disk response cache (keyed by model + prompt hash + params), and a mock-LLM mode for tests.
 - Config system for model roles, API keys, paths.
 
 **Acceptance criteria**
-- `pytest` passes in CI; the LLM wrapper returns valid typed output for 20 sample prompts (≥ 95% valid on the first try, 100% after repair).
-- Benchmarks are recorded in `docs/benchmarks.md`; the chosen S and M models stay under 8 GB RAM at peak (one resident at a time), and the measured numbers replace the estimates in `03-stack.md`.
+- Local lint, formatting, type checks, and `pytest` pass; the LLM wrapper returns valid typed output for 20 sample prompts per selected model (≥ 95% valid on the first try, 100% after repair).
+- Benchmarks are recorded in `docs/benchmarks-light.md` (original baseline preserved in `docs/benchmarks.md`); chosen models stay under 8 GiB sampled process RSS at peak, one resident at a time. This is a model-process budget, not total desktop memory. See `docs/phase-0-acceptance.md` for wrapper acceptance and limitations.
 
 ---
 
@@ -121,7 +121,7 @@ Phase 7  Extensions
 ## Phase 6: Evaluation, UI polish, hardening (about 3 weeks)
 
 **Deliverables**
-- Full eval suite in CI (see below), model-comparison harness for swapping open models.
+- Full eval suite run locally (see below), model-comparison harness for swapping open models.
 - A small trace viewer over the JSONL traces and SQLite audit log (no external observability stack), plus latency and token metrics per agent.
 - UI: side panel for assumptions, progress timeline, download buttons, error messages that explain what to do.
 - Docs: user guide, developer guide, "how to add a new data source / new agent."
@@ -178,7 +178,7 @@ Phase 7  Extensions
 | Small models mis-extract numbers | High | High | Self-consistency, XBRL reconciliation, low-confidence flags, Gate 1 |
 | XBRL tag inconsistency across companies | High | Medium | Tag fallback lists, HTML table parsing fallback, per-company overrides |
 | CPU-only inference is slow; 16 GB RAM is tight | High | High | Deterministic-first design, one resident model, 4-8k context, LLM response cache and mock mode, background runs with checkpoints, Phase 0 benchmarks, no 14B+ models |
-| Excel formulas diverge from the engine | Medium | High | Mandatory recalc + parity test in CI |
+| Excel formulas diverge from the engine | Medium | High | Mandatory local recalc + parity test |
 | Anchoring on market price | Medium | Medium | Anti-anchoring rule; keep price out of the Forecast prompt until the preview step |
 | Scope creep (more agents, more features) | High | Medium | Phase gates with acceptance criteria; Phase 7 is backlog only |
 | Licensing misreads | Low | Medium | Record each dependency/model license in a `LICENSES.md` at pin time |

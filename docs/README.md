@@ -67,6 +67,14 @@ Banks, insurers and REITs are rejected or redirected at intake: an FCFF DCF is t
 | [`04-roadmap.md`](04-roadmap.md) | Phased build plan, acceptance criteria, evaluation plan, risks |
 | [`05-development-tools.md`](05-development-tools.md) | Installed tools, their roles, current configuration, and development commands |
 | [`06-data-contracts.md`](06-data-contracts.md) | Why we use Pydantic, each planned contract's role, validation, and implementation order |
+| [`07-configuration.md`](07-configuration.md) | Typed settings, credentials, paths, model roles, CPU limits, and configuration loading |
+| [`08-local-llm-wrapper.md`](08-local-llm-wrapper.md) | Serialized local inference, repair, mocks, response cache, and limitations |
+| [`09-model-setup.md`](09-model-setup.md) | Installed candidates, provisional role assignments, benchmark procedure, and live mode |
+| [`10-intent-benchmark.md`](10-intent-benchmark.md) | Intent definitions, scoring criteria, revised lighter-model comparison, and limitations |
+| [`11-local-checks.md`](11-local-checks.md) | Local verification, reproducible dependencies, and live wrapper acceptance |
+| [`phase-0-acceptance.md`](phase-0-acceptance.md) | Completed foundation checks, wrapper results, memory evidence, and limitations |
+| [`benchmarks-light.md`](benchmarks-light.md) | Revised benchmark results for lighter candidates using explicit intent definitions |
+| [`benchmarks.md`](benchmarks.md) | Measured local CPU throughput, structured-output validity, and memory observations |
 
 ## 6. Honest limitations of an all-free approach
 

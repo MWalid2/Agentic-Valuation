@@ -97,14 +97,20 @@ Rules that keep you inside 16 GB: `OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARA
 - Limit `num_predict` per call (typically 60-250 tokens) so no call runs away.
 - Prefer a **single M model for everything** if you want zero model swaps; it's simpler but slower for the cheap steps.
 
-**Assumed throughput (replace with your benchmark).**
+**Measured lighter-model throughput (2026-10-12, six physical CPU cores).**
 
 | Class | Prompt processing | Generation |
 |---|---|---|
-| S (3-4B, Q4) | about 120 tokens/s | about 12 tokens/s |
-| M (7-8B, Q4) | about 40 tokens/s | about 5 tokens/s |
+| S (`qwen3:1.7b`, Q4_K_M) | 108.1 tokens/s | 11.9 tokens/s |
+| S (`qwen3:4b`, Q4_K_M) | 42.6 tokens/s | 6.1 tokens/s |
 
-Prompt processing matters as much as generation: a 1,500-token prompt on M costs roughly 35-40 seconds before the first output token.
+These medians come from twenty short intent prompts per model, with 4096 context,
+thinking off, CPU-only, and unloading after each call. They exclude loading time
+and do not establish long-context throughput. See [benchmarks-light.md](benchmarks-light.md).
+These lighter models replace the original S/M assignments in current configuration.
+The historical 4B/8B baseline remains in [benchmarks.md](benchmarks.md).
+The performance table in section 12 remains an unverified planning estimate;
+the measured speeds are substantially slower than its original assumptions.
 
 ## 6. Serving configuration
 
