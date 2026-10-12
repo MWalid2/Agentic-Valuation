@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dcf_agent"]
+
+[project]
+name = "agentic-valuation"
+version = "0.1.0"
+description = "A local, deterministic-first DCF valuation assistant"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "langgraph>=1.2.14",
+    "langgraph-checkpoint-sqlite>=3.1.1",
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.169.0",
+    "mypy>=2.4.0",
+    "pre-commit>=4.6.2",
+    "psutil>=7.2.2",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+    "types-pyyaml>=6.0.12.20260906",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+include = ["*.py", "*.pyi", "*.ipynb"]
+extend-exclude = [".uv-cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["main.py", "src/dcf_agent"]
+exclude = ['^\.venv/', '^\.uv-cache/']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers -ra"
