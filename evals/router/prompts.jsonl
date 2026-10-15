@@ -1,0 +1,50 @@
+{"id": 1, "text": "Apple, 2026-10-11", "status": "resolved", "ticker": "AAPL", "date": "2026-10-11", "intent": null, "scope": "in", "case": "name + ISO date, no question"}
+{"id": 2, "text": "KO, 2026-10-11", "status": "resolved", "ticker": "KO", "date": "2026-10-11", "intent": null, "scope": "in", "case": "ticker"}
+{"id": 3, "text": "nike, 2026-10-11", "status": "resolved", "ticker": "NKE", "date": "2026-10-11", "intent": null, "scope": "in", "case": "lowercase name"}
+{"id": 4, "text": "What WACC would you use for Microsoft as of 2026-09-30?", "status": "resolved", "ticker": "MSFT", "date": "2026-09-30", "intent": "I3", "scope": "in", "case": "free form"}
+{"id": 5, "text": "Coca-Cola, 2026-10-11, latest revenue and free cash flow?", "status": "resolved", "ticker": "KO", "date": "2026-10-11", "intent": "I1", "scope": "in", "case": "hyphenated name; other Coca-Cola registrants exist"}
+{"id": 6, "text": "Microsft, 2026-10-01", "status": "resolved", "ticker": "MSFT", "date": "2026-10-01", "intent": null, "scope": "in", "case": "misspelling"}
+{"id": 7, "text": "Walmart, yesterday", "status": "resolved", "ticker": "WMT", "date": "2026-10-14", "intent": null, "scope": "in", "case": "relative date"}
+{"id": 8, "text": "Home Depot, today, fair value per share?", "status": "resolved", "ticker": "HD", "date": "2026-10-15", "intent": "I6", "scope": "in", "case": "today"}
+{"id": 9, "text": "Procter & Gamble, end of Q3 2025, margin and ROIC trend over 5 years", "status": "resolved", "ticker": "PG", "date": "2025-09-30", "intent": "I2", "scope": "in", "case": "quarter end"}
+{"id": 10, "text": "McDonald's, 2026-06-30, where does the lease liability number come from?", "status": "resolved", "ticker": "MCD", "date": "2026-06-30", "intent": "I10", "scope": "in", "case": "apostrophe in name"}
+{"id": 11, "text": "Caterpillar, 30 days ago, which beta should we use?", "status": "resolved", "ticker": "CAT", "date": "2026-09-15", "intent": "I3", "scope": "in", "case": "days ago"}
+{"id": 12, "text": "Deere, end of last quarter, build the full Excel model", "status": "resolved", "ticker": "DE", "date": "2026-09-30", "intent": "I9", "scope": "in", "case": "end of last quarter"}
+{"id": 13, "text": "Exxon Mobil, 2026-08-31", "status": "resolved", "ticker": "XOM", "date": "2026-08-31", "intent": null, "scope": "in", "case": "successor registrant named ExxonMobil Holdings"}
+{"id": 14, "text": "Alphabet, 2026-10-11", "status": "resolved", "ticker": "GOOGL", "date": "2026-10-11", "intent": null, "scope": "in", "case": "several share classes; primary listed first, others noted at Gate 0"}
+{"id": 15, "text": "GOOG, 2026-10-11", "status": "resolved", "ticker": "GOOG", "date": "2026-10-11", "intent": null, "scope": "in", "case": "explicit share-class ticker"}
+{"id": 16, "text": "Johnson, 2026-10-11", "status": "ambiguous", "ticker": "JNJ", "date": "2026-10-11", "intent": null, "scope": "in", "case": "partial name of several companies"}
+{"id": 17, "text": "Johnson & Johnson, 2026-10-11, what is the cost of equity?", "status": "resolved", "ticker": "JNJ", "date": "2026-10-11", "intent": "I3", "scope": "in", "case": "ampersand"}
+{"id": 18, "text": "JPMorgan, 2026-10-11", "status": "resolved", "ticker": "JPM", "date": "2026-10-11", "intent": null, "scope": "out", "case": "bank; preferred tickers share the CIK"}
+{"id": 19, "text": "Realty Income, 2026-10-11", "status": "resolved", "ticker": "O", "date": "2026-10-11", "intent": null, "scope": "out", "case": "REIT"}
+{"id": 20, "text": "Berkshire Hathaway, 2026-10-11", "status": "resolved", "ticker": "BRK-B", "date": "2026-10-11", "intent": null, "scope": "out", "case": "insurer; two share classes"}
+{"id": 21, "text": "Goldman Sachs, 2026-10-11, what WACC?", "status": "resolved", "ticker": "GS", "date": "2026-10-11", "intent": "I3", "scope": "out", "case": "bank; similar fund names"}
+{"id": 22, "text": "Tesla, 2027-01-15", "status": "resolved", "ticker": "TSLA", "date": "reject", "intent": null, "scope": "in", "case": "future date"}
+{"id": 23, "text": "Apple, 2026-10-20", "status": "resolved", "ticker": "AAPL", "date": "reject", "intent": null, "scope": "in", "case": "future date, days ahead"}
+{"id": 24, "text": "Nike, last fiscal year end, show revenue for the last three years", "status": "resolved", "ticker": "NKE", "date": "2026-05-31", "intent": "I2", "scope": "in", "case": "last fiscal year end = latest filed 10-K report date"}
+{"id": 25, "text": "Ford, 2026-03-31, set the operating margin to 8%", "status": "resolved", "ticker": "F", "date": "2026-03-31", "intent": "I11", "scope": "in", "case": "preferred tickers share the CIK"}
+{"id": 26, "text": "General Motors, 2026-03-31, what if WACC rises by 1%?", "status": "resolved", "ticker": "GM", "date": "2026-03-31", "intent": "I7", "scope": "in", "case": "sensitivity, not cost of capital"}
+{"id": 27, "text": "Starbucks, 2026-10-01, why did you use 3% terminal growth?", "status": "resolved", "ticker": "SBUX", "date": "2026-10-01", "intent": "I4", "scope": "in", "case": "assumption rationale"}
+{"id": 28, "text": "Costco, 2026-10-01, what is the bull-case revenue in 2030?", "status": "resolved", "ticker": "COST", "date": "2026-10-01", "intent": "I5", "scope": "in", "case": "scenario"}
+{"id": 29, "text": "How does Netflix compare to its peers as of 2026-10-01?", "status": "resolved", "ticker": "NFLX", "date": "2026-10-01", "intent": "I8", "scope": "in", "case": "free form comps"}
+{"id": 30, "text": "Boeing, 2026-07-01", "status": "resolved", "ticker": "BA", "date": "2026-07-01", "intent": null, "scope": "in", "case": "preferred ticker shares the CIK"}
+{"id": 31, "text": "Oracle, 2026-07-01, what's the latest net debt?", "status": "resolved", "ticker": "ORCL", "date": "2026-07-01", "intent": "I1", "scope": "in", "case": "data"}
+{"id": 32, "text": "Intel, 2026-07-01", "status": "resolved", "ticker": "INTC", "date": "2026-07-01", "intent": null, "scope": "in", "case": "many names start with Intel-"}
+{"id": 33, "text": "Is Target undervalued as of 2026-09-01?", "status": "resolved", "ticker": "TGT", "date": "2026-09-01", "intent": "I6", "scope": "in", "case": "free form; company name is a common word"}
+{"id": 34, "text": "Amazon, 3 months ago", "status": "resolved", "ticker": "AMZN", "date": "2026-07-15", "intent": null, "scope": "in", "case": "months ago"}
+{"id": 35, "text": "Meta Platforms, 2 weeks ago, how much cash does it hold?", "status": "resolved", "ticker": "META", "date": "2026-10-01", "intent": "I1", "scope": "in", "case": "weeks ago"}
+{"id": 36, "text": "NVDA, end of 2025, what discount rate is appropriate?", "status": "resolved", "ticker": "NVDA", "date": "2025-12-31", "intent": "I3", "scope": "in", "case": "year end"}
+{"id": 37, "text": "Salesforce, 10/01/2026", "status": "resolved", "ticker": "CRM", "date": "2026-10-01", "intent": null, "scope": "in", "case": "US date format"}
+{"id": 38, "text": "PepsiCo, Oct 1, 2026, which filing reports the capex figure?", "status": "resolved", "ticker": "PEP", "date": "2026-10-01", "intent": "I10", "scope": "in", "case": "written date containing a comma"}
+{"id": 39, "text": "3M, 1 year ago", "status": "resolved", "ticker": "MMM", "date": "2025-10-15", "intent": null, "scope": "in", "case": "name starting with a digit; years ago"}
+{"id": 40, "text": "Honeywell, 2026-09-30", "status": "ambiguous", "ticker": "HON", "date": "2026-09-30", "intent": null, "scope": "in", "case": "spin-off Honeywell Aerospace is a separate registrant"}
+{"id": 41, "text": "UPS, 2026-09-30, update the tax rate to 21%", "status": "resolved", "ticker": "UPS", "date": "2026-09-30", "intent": "I11", "scope": "in", "case": "modify"}
+{"id": 42, "text": "FedEx, 2026-09-30, what's the cost of debt?", "status": "resolved", "ticker": "FDX", "date": "2026-09-30", "intent": "I3", "scope": "in", "case": "cost of debt"}
+{"id": 43, "text": "Give me Delta Air Lines' latest EBIT and interest expense", "status": "resolved", "ticker": "DAL", "date": "2026-10-15", "intent": "I1", "scope": "in", "case": "free form, no date: today assumed"}
+{"id": 44, "text": "How much is Snowflake worth today?", "status": "resolved", "ticker": "SNOW", "date": "2026-10-15", "intent": "I6", "scope": "in", "case": "free form valuation"}
+{"id": 45, "text": "Sysco, 2026-06-30, full DCF model in Excel please", "status": "resolved", "ticker": "SYY", "date": "2026-06-30", "intent": "I9", "scope": "in", "case": "full model"}
+{"id": 46, "text": "Steel Dynamics, 2026-06-30", "status": "resolved", "ticker": "STLD", "date": "2026-06-30", "intent": null, "scope": "in", "case": "two-word name"}
+{"id": 47, "text": "Fox, 2026-06-30", "status": "resolved", "ticker": "FOXA", "date": "2026-06-30", "intent": null, "scope": "in", "case": "short name; two share classes"}
+{"id": 48, "text": "Simon Property Group, 2026-10-11", "status": "resolved", "ticker": "SPG", "date": "2026-10-11", "intent": null, "scope": "out", "case": "REIT"}
+{"id": 49, "text": "Zoom, 2026-06-30", "status": "resolved", "ticker": "ZM", "date": "2026-06-30", "intent": null, "scope": "in", "case": "renamed registrant (Zoom Communications); similar names"}
+{"id": 50, "text": "Starbuck, 2026-10-01, what is the cost of capital?", "status": "resolved", "ticker": "SBUX", "date": "2026-10-01", "intent": "I3", "scope": "in", "case": "misspelling"}

@@ -11,6 +11,7 @@ from dcf_agent.contracts.accounting import (
     NormalizedFinancials,
     Text,
 )
+from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import (
     InputContract,
     MacroData,
@@ -129,6 +130,8 @@ class ValuationState(TypedDict, total=False):
 
     request: Required[ValuationRequest]
     budget: Required[Budget]
+    # Full Data Agent handoff: readiness, issues, benchmarks, rates and provenance.
+    data: DataBundle
     raw: RawFinancials
     market: MarketData
     macro: MacroData
@@ -151,6 +154,7 @@ class ValuationSnapshot(InputContract):
 
     request: ValuationRequest
     budget: Budget
+    data: DataBundle | None = None
     raw: RawFinancials | None = None
     market: MarketData | None = None
     macro: MacroData | None = None
@@ -174,6 +178,12 @@ class ValuationSnapshot(InputContract):
                 raise ValueError("Dataset company must match the request")
         if self.market is not None and self.market.ticker != self.request.ticker:
             raise ValueError("Market ticker must match the request")
+        if self.data is not None and (
+            self.data.request.cik,
+            self.data.request.ticker,
+            self.data.request.valuation_date,
+        ) != (self.request.cik, self.request.ticker, self.request.valuation_date):
+            raise ValueError("Data bundle company and date must match the request")
         datasets = (
             self.raw,
             self.market,

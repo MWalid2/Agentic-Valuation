@@ -71,6 +71,14 @@ Conventions used below:
 
 ## 1. Data Agent
 
+**Implementation checkpoint (2026-10-13).** `agents/data.py` now calls the bounded
+SEC, price, FRED, and Damodaran tools in `tools/data.py`, returning a `DataBundle`
+and quality report. See [source adapters and local commands](15-data-agent-sources.md).
+The output includes the original financial snapshot plus annual, quarterly and
+TTM RawFinancials through the [history extension](19-financial-history.md).
+Unsupported concepts stay explicit; full input coverage and graph integration
+remain separate work.
+
 **Mission.** Fetch structured financial, market and macro data as of the valuation date, validate it, and hand over a clean, provenance-tagged dataset.
 
 **Inputs.** `ValuationRequest`.

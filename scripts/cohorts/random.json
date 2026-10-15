@@ -1,0 +1,242 @@
+[
+  {
+    "ticker": "NEON",
+    "cik": "0000087050",
+    "name": "Neonode Inc.",
+    "sic": "3679",
+    "sic_description": "Electronic Components, NEC",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "STLD",
+    "cik": "0001022671",
+    "name": "STEEL DYNAMICS INC",
+    "sic": "3312",
+    "sic_description": "Steel Works, Blast Furnaces & Rolling Mills (Coke Ovens)",
+    "state_of_incorporation": "IN"
+  },
+  {
+    "ticker": "TZOO",
+    "cik": "0001133311",
+    "name": "TRAVELZOO",
+    "sic": "7310",
+    "sic_description": "Services-Advertising",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "SLDB",
+    "cik": "0001707502",
+    "name": "Solid Biosciences Inc.",
+    "sic": "2836",
+    "sic_description": "Biological Products, (No Diagnostic Substances)",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "EURKU",
+    "cik": "0002000410",
+    "name": "Eureka Acquisition Corp",
+    "sic": "4400",
+    "sic_description": "Water Transportation",
+    "state_of_incorporation": "E9"
+  },
+  {
+    "ticker": "ABAT",
+    "cik": "0001576873",
+    "name": "AMERICAN BATTERY TECHNOLOGY Co",
+    "sic": "1400",
+    "sic_description": "Mining & Quarrying of  Nonmetallic Minerals (No Fuels)",
+    "state_of_incorporation": "NV"
+  },
+  {
+    "ticker": "CZR",
+    "cik": "0001590895",
+    "name": "Caesars Entertainment, Inc.",
+    "sic": "7011",
+    "sic_description": "Hotels & Motels",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "ALNT",
+    "cik": "0000046129",
+    "name": "ALLIENT INC",
+    "sic": "3825",
+    "sic_description": "Instruments For Meas & Testing of  Electricity & Elec Signals",
+    "state_of_incorporation": "CO"
+  },
+  {
+    "ticker": "BIOA",
+    "cik": "0001709941",
+    "name": "BioAge Labs, Inc.",
+    "sic": "2834",
+    "sic_description": "Pharmaceutical Preparations",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "BA-PA",
+    "cik": "0000012927",
+    "name": "BOEING CO",
+    "sic": "3721",
+    "sic_description": "Aircraft",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "TSNDF",
+    "cik": "0001778129",
+    "name": "TerrAscend Corp.",
+    "sic": "0100",
+    "sic_description": "Agricultural Production-Crops",
+    "state_of_incorporation": "A6"
+  },
+  {
+    "ticker": "EVTC",
+    "cik": "0001559865",
+    "name": "EVERTEC, Inc.",
+    "sic": "7374",
+    "sic_description": "Services-Computer Processing & Data Preparation",
+    "state_of_incorporation": "PR"
+  },
+  {
+    "ticker": "CON",
+    "cik": "0002014596",
+    "name": "Concentra Group Holdings Parent, Inc.",
+    "sic": "8093",
+    "sic_description": "Services-Specialty Outpatient Facilities, NEC",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "CHD",
+    "cik": "0000313927",
+    "name": "CHURCH & DWIGHT CO INC /DE/",
+    "sic": "2840",
+    "sic_description": "Soap, Detergents, Cleang Preparations, Perfumes, Cosmetics",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "FPS",
+    "cik": "0002080126",
+    "name": "Forgent Power Solutions, Inc.",
+    "sic": "3620",
+    "sic_description": "Electrical Industrial Apparatus",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "ADPT",
+    "cik": "0001478320",
+    "name": "Adaptive Biotechnologies Corp",
+    "sic": "2836",
+    "sic_description": "Biological Products, (No Diagnostic Substances)",
+    "state_of_incorporation": "WA"
+  },
+  {
+    "ticker": "SYY",
+    "cik": "0000096021",
+    "name": "SYSCO CORP",
+    "sic": "5140",
+    "sic_description": "Wholesale-Groceries & Related Products",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "IIIN",
+    "cik": "0000764401",
+    "name": "INSTEEL INDUSTRIES INC",
+    "sic": "3310",
+    "sic_description": "Steel Works, Blast Furnaces & Rolling & Finishing Mills",
+    "state_of_incorporation": "NC"
+  },
+  {
+    "ticker": "LNZA",
+    "cik": "0001843724",
+    "name": "LanzaTech Global, Inc.",
+    "sic": "2860",
+    "sic_description": "Industrial Organic Chemicals",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "PMHS",
+    "cik": "0001265521",
+    "name": "Polomar Health Services, Inc.",
+    "sic": "2834",
+    "sic_description": "Pharmaceutical Preparations",
+    "state_of_incorporation": "NV"
+  },
+  {
+    "ticker": "LLPS",
+    "cik": "0001842167",
+    "name": "Limitless Projects Inc.",
+    "sic": "7389",
+    "sic_description": "Services-Business Services, NEC",
+    "state_of_incorporation": "WY"
+  },
+  {
+    "ticker": "CTVA",
+    "cik": "0001755672",
+    "name": "Corteva, Inc.",
+    "sic": "0100",
+    "sic_description": "Agricultural Production-Crops",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "NUMD",
+    "cik": "0001543637",
+    "name": "Nu-Med Plus, Inc.",
+    "sic": "3841",
+    "sic_description": "Surgical & Medical Instruments & Apparatus",
+    "state_of_incorporation": "UT"
+  },
+  {
+    "ticker": "QUBT",
+    "cik": "0001758009",
+    "name": "Quantum Computing Inc.",
+    "sic": "7372",
+    "sic_description": "Services-Prepackaged Software",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "ITHUF",
+    "cik": "0001643154",
+    "name": "iANTHUS CAPITAL HOLDINGS, INC.",
+    "sic": "0100",
+    "sic_description": "Agricultural Production-Crops",
+    "state_of_incorporation": "A1"
+  },
+  {
+    "ticker": "HNRG",
+    "cik": "0000788965",
+    "name": "HALLADOR ENERGY CO",
+    "sic": "4911",
+    "sic_description": "Electric Services",
+    "state_of_incorporation": "CO"
+  },
+  {
+    "ticker": "MIST",
+    "cik": "0001408443",
+    "name": "Milestone Pharmaceuticals Inc.",
+    "sic": "2834",
+    "sic_description": "Pharmaceutical Preparations",
+    "state_of_incorporation": "A8"
+  },
+  {
+    "ticker": "PODD",
+    "cik": "0001145197",
+    "name": "INSULET CORP",
+    "sic": "3841",
+    "sic_description": "Surgical & Medical Instruments & Apparatus",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "PRSU",
+    "cik": "0000884219",
+    "name": "Pursuit Attractions & Hospitality, Inc.",
+    "sic": "7990",
+    "sic_description": "Services-Miscellaneous Amusement & Recreation",
+    "state_of_incorporation": "DE"
+  },
+  {
+    "ticker": "MIR",
+    "cik": "0001809987",
+    "name": "Mirion Technologies, Inc.",
+    "sic": "3829",
+    "sic_description": "Measuring & Controlling Devices, NEC",
+    "state_of_incorporation": null
+  }
+]

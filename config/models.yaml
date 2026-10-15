@@ -5,7 +5,9 @@ roles:
   filings: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 160}
   normalizer: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 200}
   forecast: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 300, temperature: 0.3}
-  wacc: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 150}
+  # 4b: on ten companies 1.7b averaged betas against its own stated evidence (5/10
+  # within 0.3pp of the rule); 4b kept the rule with correct reasons (10/10). docs/23.
+  wacc: {model: 'qwen3:4b', size_class: S, num_ctx: 2048, num_predict: 150}
   comps: {model: 'qwen3:1.7b', size_class: S, num_ctx: 2048, num_predict: 100}
   critic: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 300}
   reporter: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 250}

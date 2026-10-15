@@ -164,6 +164,7 @@ created files need to be added to Git before that command includes them.
 | `pyyaml` | Read YAML configuration for model roles and assumptions |
 | `langgraph` | Coordinate agent execution, routing, state, and human approval gates |
 | `langgraph-checkpoint-sqlite` | Persist graph checkpoints in SQLite for interrupt and resume |
+| `lxml` | Parse SEC filing HTML and inline XBRL evidence for the document-reading agent |
 
 Pydantic and mypy serve different purposes: Pydantic validates actual data while
 the application runs; mypy checks annotated code during development.
@@ -177,6 +178,7 @@ them does not configure cloud tracing or implement our agent graph.
 |---|---|
 | `types-PyYAML` | Supply type information that helps mypy check PyYAML usage |
 | `types-psutil` | Supply type information for memory and CPU measurements |
+| `lxml-stubs` | Supply type information for the SEC HTML evidence parser |
 | `psutil` | Measure process memory and inspect hardware during planned local LLM benchmarks |
 
 These are in the development dependency group. `scripts/benchmark_llm.py`

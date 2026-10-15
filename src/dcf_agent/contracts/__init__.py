@@ -13,7 +13,9 @@ from dcf_agent.contracts.accounting import (
     NormalizedPeriod,
     SegmentData,
 )
+from dcf_agent.contracts.external import BenchmarkRow, BenchmarkTable, DataBundle, PriceHistory
 from dcf_agent.contracts.inputs import (
+    ConceptStatus,
     FinancialPeriod,
     MacroData,
     MacroObservation,
@@ -33,6 +35,7 @@ from dcf_agent.contracts.modeling import (
 )
 from dcf_agent.contracts.provenance import Confidence, Provenance, Source, Sourced
 from dcf_agent.contracts.quality import DataFallback, DataQualityCheck, DataQualityReport
+from dcf_agent.contracts.snapshot import FinancialSnapshot, SnapshotField
 from dcf_agent.contracts.workflow import (
     ApprovalRecord,
     Budget,
@@ -45,6 +48,12 @@ from dcf_agent.contracts.workflow import (
 )
 
 __all__ = [
+    "BenchmarkRow",
+    "BenchmarkTable",
+    "DataBundle",
+    "PriceHistory",
+    "FinancialSnapshot",
+    "SnapshotField",
     "ApprovalRecord",
     "Budget",
     "CritiqueIssue",
@@ -75,6 +84,7 @@ __all__ = [
     "NormalizedPeriod",
     "SegmentData",
     "Confidence",
+    "ConceptStatus",
     "FinancialPeriod",
     "MacroData",
     "MacroObservation",

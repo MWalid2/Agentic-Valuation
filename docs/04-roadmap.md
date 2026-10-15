@@ -36,10 +36,34 @@ Phase 7  Extensions
 
 ## Phase 1: Deterministic core (about 3-4 weeks) ★
 
+Current data-layer compatibility and remaining handoff work are reviewed in
+[`17-data-layer-review.md`](17-data-layer-review.md). Collection success is not
+Phase 1 acceptance: constructed `RawFinancials` periods must also have the
+validated concept coverage needed for normalization and valuation.
+
+The 2026-10-14 extension now emits broader single-period `RawFinancials` and
+missing-concept diagnostics; see [18-raw-financials.md](18-raw-financials.md).
+The subsequent [history extension](19-financial-history.md) builds five annual
+periods, eight standalone quarters and TTM, with standard filing-disclosure
+fallbacks. Full concept coverage, fiscal-transition/custom-disclosure handling,
+and normalization readiness remain pending; period counts alone are not acceptance.
+
+**2026-10-15:** the general history plan ([20-general-history-plan.md](20-general-history-plan.md))
+replaced tag lists with each filing's XBRL structure. Extraction matches 111 of 111
+hand-recorded reference values within 0.5% across 11 companies (eight not used to
+build the rules); readiness is measured on a 22-company targeted and 30-company
+random cohort. The valuation core followed the same day
+([22-valuation-core.md](22-valuation-core.md)): Normalizer v0, DCF engine, WACC
+calculators, Excel workbook with LibreOffice parity to the cent, and the CLI.
+**Phase 1 complete:** the engine matches Damodaran's FCFF template to rounding,
+and an end-to-end point-in-time test confirms an earlier valuation date sees only
+earlier filings. Next: Phase 2 (Router, Data Agent as a ReAct loop, WACC Agent,
+terminal chat).
+
 **Deliverables**
-1. **EDGAR adapter** with cache, rate limiting, User-Agent, point-in-time filter, XBRL tag fallback lists, annual/quarterly/TTM builder, statement validator.
-2. **Damodaran + FRED adapters** with versioned snapshots.
-3. **Prices adapter** (`yfinance` → Stooq → cache).
+1. **EDGAR adapter** with cache, rate limiting, User-Agent, point-in-time filter, and statement validation. The approved 2026-10-13 redesign starts with an LLM debt-reading agent backed by controlled SEC tools and deterministic citation/numeric checks. The single-period snapshot now covers eleven cited fields (see `14-financial-snapshot.md`). Full annual/quarterly/TTM inputs remain required before Phase 1 acceptance.
+2. **Damodaran + FRED adapters** with versioned snapshots. Implemented for five NYU tables and three FRED vintage series; exposed through Data Agent tools. See `15-data-agent-sources.md`.
+3. **Prices adapter** (`yfinance` → Stooq → cache). Implemented daily history, split handling, explicit fallback limitations, and Data Agent assembly; weekly return series remain future work.
 4. **Normalization (rule-based v0):** NOPAT, invested capital, ROIC, tax rates; leases and SBC treatment per defaults; manual adjustment hook.
 5. **DCF engine:** FCFF, stub period + mid-year, Gordon TV with ROIC consistency, bridge, TSM dilution, scenarios, sensitivities.
 6. **WACC calculators:** bottom-up beta, regression beta, synthetic rating.

@@ -61,3 +61,22 @@ The distribution name is `agentic-valuation`; its Python import name is
 `dcf_agent`, matching the architecture document.
 
 The root `main.py` is still the uv starter script, not a valuation CLI.
+
+The rebuilt [SEC EDGAR agent](docs/12-sec-edgar-adapter.md) reads dated filings
+through controlled tools and proposes a cited debt breakdown. Python validates
+the evidence and calculates totals; interpretations require human review.
+Run `uv run python scripts/check_edgar_agent.py --offline-sec` to evaluate
+Coca-Cola, Nike, and Apple using saved SEC snapshots and the live local 4B model.
+Omit `--offline-sec` to download missing snapshots with your SEC contact identity.
+
+The [financial snapshot agent](docs/14-financial-snapshot.md) extracts eleven
+fields from one filing and checks citations, accounting basis, and the balance
+identity. Run `uv run python scripts/check_snapshot_agent.py --offline-sec` for
+the full-snapshot evaluation. The [history builder](docs/19-financial-history.md)
+now adds five annual periods, eight standalone quarters, TTM, and standard
+filing-disclosure fallback, with explicit missing-concept diagnostics.
+
+The [Data Agent and external sources](docs/15-data-agent-sources.md) now combine
+the SEC snapshot with yfinance/Stooq prices, FRED historical-vintage rates, and
+Damodaran benchmarks. `scripts/collect_data.py` writes a sourced data bundle and
+quality report; its documentation includes a live and offline replay example.

@@ -186,3 +186,29 @@ def test_state_rejects_wrong_company_and_future_datasets() -> None:
 def test_state_rejects_unknown_top_level_fields() -> None:
     with pytest.raises(ValidationError):
         validate_state(snapshot(unexpected="value"))
+
+
+def bundle(valuation_date: date) -> dict[str, object]:
+    request = {
+        **snapshot()["request"],
+        "valuation_date": valuation_date,
+        "mode": "info",
+        "question": "Collect inputs",
+    }
+    check = {
+        "check_id": "seed:0",
+        "field": "seed",
+        "status": "passed",
+        "severity": "info",
+        "message": "Seed from the latest 10-K",
+    }
+    return {"request": request, "quality": {"as_of": valuation_date, "checks": (check,)}}
+
+
+def test_state_carries_the_full_data_bundle_for_the_same_request() -> None:
+    value = ValuationSnapshot.model_validate(snapshot(data=bundle(date(2026, 10, 12))))
+    restored = ValuationSnapshot.model_validate_json(value.model_dump_json())
+    assert restored == value
+    assert validate_state(restored)["data"].request.mode == "info"
+    with pytest.raises(ValidationError, match="Data bundle"):
+        ValuationSnapshot.model_validate(snapshot(data=bundle(date(2026, 10, 11))))
