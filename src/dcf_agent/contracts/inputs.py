@@ -34,6 +34,11 @@ FinancialConcept = Literal[
     "equity",
     "minority_interest",
     "preferred_equity",
+    # Temporary-equity claims that are neither preferred stock nor noncontrolling
+    # interest (e.g. a blank-check company's redeemable shares).
+    "temporary_equity",
+    # Debt of a captive finance arm, separated from industrial debt when presented.
+    "captive_finance_debt",
     "total_assets",
     "total_liabilities",
     "operating_cash_flow",
@@ -81,6 +86,27 @@ class ValuationRequest(InputContract):
         return self
 
 
+class ConceptStatus(InputContract):
+    """Why a concept has, or lacks, a value in one period.
+
+    ``reported`` and ``carried_forward`` concepts carry a value; the others do not.
+    ``not_presented`` means positive evidence that the issuer has no such line
+    (an evidenced zero); ``not_disclosed`` means the filing does not provide it;
+    ``carried_forward`` is an earlier dated observation, never relabelled.
+    """
+
+    status: Literal["reported", "not_presented", "not_disclosed", "carried_forward", "unresolved"]
+    basis: str | None = Field(default=None, min_length=1, pattern=r"\S")
+    reason: str | None = Field(default=None, min_length=1, pattern=r"\S")
+    observed_on: date | None = None
+
+    @model_validator(mode="after")
+    def validate_status(self) -> Self:
+        if (self.status == "carried_forward") != (self.observed_on is not None):
+            raise ValueError("Only carried-forward values record a separate observation date")
+        return self
+
+
 class FinancialPeriod(InputContract):
     """Reported historical period with sourced values.
 
@@ -96,6 +122,8 @@ class FinancialPeriod(InputContract):
     period_start: date
     period_end: date
     values: dict[FinancialConcept, Sourced[float]] = Field(min_length=1)
+    # Concepts without an entry are legacy/unclassified; absent values are never zero.
+    statuses: dict[FinancialConcept, ConceptStatus] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_period(self) -> Self:
@@ -103,8 +131,22 @@ class FinancialPeriod(InputContract):
             raise ValueError("Period start cannot follow period end")
         if (self.kind == "quarterly") != (self.fiscal_quarter is not None):
             raise ValueError("Only quarterly periods require a fiscal quarter")
+        for concept, item in self.statuses.items():
+            valued = item.status in ("reported", "carried_forward")
+            if valued != (concept in self.values):
+                raise ValueError(f"{concept}: status {item.status} disagrees with its value")
+            if item.observed_on is not None and item.observed_on >= self.period_end:
+                raise ValueError(
+                    f"{concept}: a carried-forward observation must precede the period end"
+                )
         for concept, value in self.values.items():
-            if value.prov.period_end != self.period_end:
+            status = self.statuses.get(concept)
+            expected = (
+                status.observed_on
+                if status is not None and status.observed_on is not None
+                else self.period_end
+            )
+            if value.prov.period_end != expected:
                 raise ValueError(f"{concept}: evidence period end must match the financial period")
         return self
 

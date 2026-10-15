@@ -1,0 +1,82 @@
+[
+  {
+    "company": "Microsoft", "cik": "789019", "accession": "0001193125-26-323660",
+    "period_start": "2025-07-01", "period_end": "2026-06-30",
+    "source": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm",
+    "notes": "Read from the 10-K income statement, balance sheet and cash flow tables (in millions). Debt = current portion + long-term debt.",
+    "values": {"revenue": 331839000000, "operating_income": 155237000000, "net_income": 133749000000,
+      "cash": 20935000000, "debt": 40294000000, "total_assets": 758376000000,
+      "total_liabilities": 315989000000, "equity": 442387000000,
+      "operating_cash_flow": 182935000000, "capex": 115948000000}
+  },
+  {
+    "company": "Walmart", "cik": "104169", "accession": "0000104169-26-000055",
+    "period_start": "2025-02-01", "period_end": "2026-01-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000055/wmt-20260131.htm",
+    "notes": "In millions. Debt = short-term borrowings + long-term debt due within one year + long-term debt; finance lease obligations are separate lines and excluded. No total liabilities line: sum of liability lines, excluding redeemable noncontrolling interest. Net income and equity attributable to Walmart.",
+    "values": {"revenue": 713163000000, "operating_income": 29825000000, "net_income": 21893000000,
+      "cash": 10727000000, "debt": 44762000000, "total_assets": 284668000000,
+      "total_liabilities": 178488000000, "equity": 99617000000,
+      "operating_cash_flow": 41565000000, "capex": 26642000000}
+  },
+  {
+    "company": "McDonald's", "cik": "63908", "accession": "0000063908-26-000035",
+    "period_start": "2025-01-01", "period_end": "2025-12-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/63908/000006390826000035/mcd-20251231.htm",
+    "notes": "In millions. Negative equity (shareholders' deficit). No total liabilities line: total assets less the deficit. Lease liabilities excluded from debt.",
+    "values": {"revenue": 26885000000, "operating_income": 12393000000, "net_income": 8563000000,
+      "cash": 774000000, "debt": 39973000000, "total_assets": 59515000000,
+      "total_liabilities": 61306000000, "equity": -1791000000,
+      "operating_cash_flow": 10551000000, "capex": 3365000000}
+  },
+  {
+    "company": "Procter & Gamble", "cik": "80424", "accession": "0000080424-26-000103",
+    "period_start": "2025-07-01", "period_end": "2026-06-30",
+    "source": "https://www.sec.gov/Archives/edgar/data/80424/000008042426000103/pg-20260630.htm",
+    "notes": "In millions. 'Net earnings attributable to Procter & Gamble'. Parent equity = total shareholders' equity 54,311 less noncontrolling interest 230. Debt = debt due within one year + long-term debt.",
+    "values": {"revenue": 87032000000, "operating_income": 19748000000, "net_income": 16046000000,
+      "cash": 9942000000, "debt": 34138000000, "total_assets": 126521000000,
+      "total_liabilities": 72210000000, "equity": 54081000000,
+      "operating_cash_flow": 19556000000, "capex": 4409000000}
+  },
+  {
+    "company": "Caterpillar", "cik": "18230", "accession": "0000018230-26-000008",
+    "period_start": "2025-01-01", "period_end": "2025-12-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000008/cat-20251231.htm",
+    "notes": "In millions. Captive-finance policy: debt is Machinery, Power & Energy borrowings (0 + 35 + 10,678); Financial Products borrowings (5,514 + 7,085 + 20,018) are captive_finance_debt. Operating income = 'Operating profit'. Capex = 'Capital expenditures - excluding equipment leased to others' (2,821); expenditures for equipment leased to others (1,465) are Cat Financial's lease fleet and belong to the separated finance arm.",
+    "values": {"revenue": 67589000000, "operating_income": 11151000000, "net_income": 8884000000,
+      "cash": 9980000000, "debt": 10713000000, "captive_finance_debt": 32617000000,
+      "total_assets": 98585000000, "total_liabilities": 77267000000, "equity": 21318000000,
+      "operating_cash_flow": 11739000000, "capex": 2821000000}
+  },
+  {
+    "company": "Snowflake", "cik": "1640147", "accession": "0001640147-26-000008",
+    "period_start": "2025-02-01", "period_end": "2026-01-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/1640147/000164014726000008/snow-20260131.htm",
+    "notes": "In thousands. Loss-making. Debt = convertible senior notes, net. Net loss attributable to Snowflake Inc.",
+    "values": {"revenue": 4683946000, "operating_income": -1435165000, "net_income": -1331616000,
+      "cash": 2828163000, "debt": 2279827000, "total_assets": 9132495000,
+      "total_liabilities": 7208393000, "equity": 1924102000,
+      "operating_cash_flow": 1221942000, "capex": 101628000}
+  },
+  {
+    "company": "Steel Dynamics", "cik": "1022671", "accession": "0001104659-26-021395",
+    "period_start": "2025-01-01", "period_end": "2025-12-31",
+    "source": "https://www.sec.gov/Archives/edgar/data/1022671/000110465926021395/stld-20251231x10k.htm",
+    "notes": "In thousands. Net income and equity attributable to Steel Dynamics, Inc. Debt = current maturities + long-term debt.",
+    "values": {"revenue": 18176581000, "operating_income": 1475986000, "net_income": 1185595000,
+      "cash": 769878000, "debt": 4211163000, "total_assets": 16419780000,
+      "total_liabilities": 7489369000, "equity": 8957182000,
+      "operating_cash_flow": 1449534000, "capex": 948025000}
+  },
+  {
+    "company": "Sysco", "cik": "96021", "accession": "0000096021-26-000033",
+    "period_start": "2025-06-29", "period_end": "2026-06-27",
+    "source": "https://www.sec.gov/Archives/edgar/data/96021/000009602126000033/syy-20260627.htm",
+    "notes": "In millions. 52-week year. Total liabilities = total current + total long-term liabilities. Debt = current maturities + long-term debt.",
+    "values": {"revenue": 84553000000, "operating_income": 3095000000, "net_income": 1757000000,
+      "cash": 1786000000, "debt": 13516000000, "total_assets": 28397000000,
+      "total_liabilities": 25731000000, "equity": 2666000000,
+      "operating_cash_flow": 2638000000, "capex": 700000000}
+  }
+]

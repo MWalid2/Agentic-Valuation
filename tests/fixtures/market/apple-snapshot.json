@@ -1,0 +1,357 @@
+{
+  "snapshot": {
+    "cik": "0000320193",
+    "as_of": "2026-10-11",
+    "kind": "annual",
+    "fiscal_year": 2025,
+    "fiscal_quarter": null,
+    "period_start": "2024-09-29",
+    "period_end": "2025-09-27",
+    "fields": {
+      "revenue": {
+        "status": "available",
+        "amount": {
+          "value": 416161000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-78",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: revenue; add Total net sales=4.16161e+11; us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"
+          }
+        },
+        "unit": "USD",
+        "basis": "period",
+        "period_start": "2024-09-29",
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "operating_income": {
+        "status": "available",
+        "amount": {
+          "value": 133050000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-102",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: operating_income; add Operating income=1.3305e+11; us-gaap:OperatingIncomeLoss"
+          }
+        },
+        "unit": "USD",
+        "basis": "period",
+        "period_start": "2024-09-29",
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "net_income": {
+        "status": "available",
+        "amount": {
+          "value": 112010000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-114",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: net_income; add Net income=1.1201e+11; us-gaap:NetIncomeLoss"
+          }
+        },
+        "unit": "USD",
+        "basis": "period",
+        "period_start": "2024-09-29",
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "cash": {
+        "status": "available",
+        "amount": {
+          "value": 35934000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-159",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: cash; add Cash and cash equivalents=3.5934e+10; us-gaap:CashAndCashEquivalentsAtCarryingValue"
+          }
+        },
+        "unit": "USD",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "debt": {
+        "status": "available",
+        "amount": {
+          "value": 98657000000.0,
+          "prov": {
+            "source": "derived",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-189 | https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-191 | https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-195",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: debt; add Commercial paper=7.979e+09; us-gaap:CommercialPaper | add Term debt=1.235e+10; us-gaap:LongTermDebtCurrent | add Term debt=7.8328e+10; us-gaap:LongTermDebtNoncurrent"
+          }
+        },
+        "unit": "USD",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "total_assets": {
+        "status": "available",
+        "amount": {
+          "value": 359241000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-181",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: total_assets; add Total assets=3.59241e+11; us-gaap:Assets"
+          }
+        },
+        "unit": "USD",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "total_liabilities": {
+        "status": "available",
+        "amount": {
+          "value": 285508000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-201",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: total_liabilities; add Total liabilities=2.85508e+11; us-gaap:Liabilities"
+          }
+        },
+        "unit": "USD",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "equity": {
+        "status": "available",
+        "amount": {
+          "value": 73733000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-219",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: equity; add Total shareholders\u2019 equity=7.3733e+10; us-gaap:StockholdersEquity"
+          }
+        },
+        "unit": "USD",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "operating_cash_flow": {
+        "status": "available",
+        "amount": {
+          "value": 111482000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-307",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: operating_cash_flow; add Cash generated by operating activities=1.11482e+11; us-gaap:NetCashProvidedByUsedInOperatingActivities"
+          }
+        },
+        "unit": "USD",
+        "basis": "period",
+        "period_start": "2024-09-29",
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "capex": {
+        "status": "available",
+        "amount": {
+          "value": 12715000000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-319",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-09-27",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: capex; add Payments for acquisition of property, plant and equipment=1.2715e+10; us-gaap:PaymentsToAcquirePropertyPlantAndEquipment"
+          }
+        },
+        "unit": "USD",
+        "basis": "period",
+        "period_start": "2024-09-29",
+        "observed_on": "2025-09-27",
+        "explanation": null
+      },
+      "shares_outstanding": {
+        "status": "available",
+        "amount": {
+          "value": 14776353000.0,
+          "prov": {
+            "source": "sec_filing_text",
+            "ref": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm#f-51",
+            "as_of": "2026-10-11",
+            "confidence": "medium",
+            "period_end": "2025-10-17",
+            "filed": "2025-10-31",
+            "note": "Agent interpretation: shares_outstanding; add Cover-page shares outstanding=1.47764e+10; dei:EntityCommonStockSharesOutstanding"
+          }
+        },
+        "unit": "shares",
+        "basis": "instant",
+        "period_start": null,
+        "observed_on": "2025-10-17",
+        "explanation": null
+      }
+    },
+    "review_required": true
+  },
+  "warnings": [],
+  "decisions": [
+    {
+      "concept": "revenue",
+      "cell_ids": [
+        "I1"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "operating_income",
+      "cell_ids": [
+        "I7"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "net_income",
+      "cell_ids": [
+        "I11"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "cash",
+      "cell_ids": [
+        "B1"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "debt",
+      "cell_ids": [
+        "B16",
+        "B17",
+        "B19"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "total_assets",
+      "cell_ids": [
+        "B12"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "total_liabilities",
+      "cell_ids": [
+        "B22"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "equity",
+      "cell_ids": [
+        "B26"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "operating_cash_flow",
+      "cell_ids": [
+        "C11"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "capex",
+      "cell_ids": [
+        "C15"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    },
+    {
+      "concept": "shares_outstanding",
+      "cell_ids": [
+        "S1"
+      ],
+      "subtract_ids": [],
+      "status": "available",
+      "reason": ""
+    }
+  ],
+  "tool_calls": [
+    "list_filings",
+    "read_balance_sheet",
+    "read_income_statement",
+    "read_cash_flow",
+    "read_shares",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl",
+    "query_xbrl"
+  ],
+  "balance_check": "passed"
+}

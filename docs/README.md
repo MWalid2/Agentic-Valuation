@@ -72,6 +72,18 @@ Banks, insurers and REITs are rejected or redirected at intake: an FCFF DCF is t
 | [`09-model-setup.md`](09-model-setup.md) | Installed candidates, provisional role assignments, benchmark procedure, and live mode |
 | [`10-intent-benchmark.md`](10-intent-benchmark.md) | Intent definitions, scoring criteria, revised lighter-model comparison, and limitations |
 | [`11-local-checks.md`](11-local-checks.md) | Local verification, reproducible dependencies, and live wrapper acceptance |
+| [`12-sec-edgar-adapter.md`](12-sec-edgar-adapter.md) | Local document-reading agent, controlled SEC tools, cited debt validation, and limits |
+| [`13-company-adapter-checks.md`](13-company-adapter-checks.md) | Apple, Coca-Cola, and Nike integration results and remaining mapping gaps |
+| [`14-financial-snapshot.md`](14-financial-snapshot.md) | Single-period extraction contract, field status, units, dates, and review policy |
+| [`15-data-agent-sources.md`](15-data-agent-sources.md) | Damodaran, FRED, prices, bounded Data Agent tools, combined collection and offline replay |
+| [`16-data-agent-company-checks.md`](16-data-agent-company-checks.md) | Multi-company integration results and reference comparisons |
+| [`17-data-layer-review.md`](17-data-layer-review.md) | Architecture fit, downstream handoff gaps, and the purpose of extraction refinements |
+| [`18-raw-financials.md`](18-raw-financials.md) | Broader statement inputs, single-period RawFinancials handoff, and missing-data boundaries |
+| [`19-financial-history.md`](19-financial-history.md) | Annual/quarterly history, TTM, standard disclosure fallback, and period-specific gaps |
+| [`20-general-history-plan.md`](20-general-history-plan.md) | Plan for history that generalizes to all US non-financial companies; progress log |
+| [`21-data-agent-explained.md`](21-data-agent-explained.md) | Plain-language overview: what the Data Agent does, its sources, and how results were made exact |
+| [`22-valuation-core.md`](22-valuation-core.md) | Normalizer, DCF engine, WACC calculators, Excel workbook with LibreOffice parity, and the CLI |
+| [`23-phase-2-plan.md`](23-phase-2-plan.md) | Phase 2 plan: Router, Gate 0, Data and WACC agents, answers, LangGraph and terminal chat |
 | [`phase-0-acceptance.md`](phase-0-acceptance.md) | Completed foundation checks, wrapper results, memory evidence, and limitations |
 | [`benchmarks-light.md`](benchmarks-light.md) | Revised benchmark results for lighter candidates using explicit intent definitions |
 | [`benchmarks.md`](benchmarks.md) | Measured local CPU throughput, structured-output validity, and memory observations |

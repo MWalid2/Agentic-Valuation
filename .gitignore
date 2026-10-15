@@ -15,5 +15,5 @@ wheels/
 .pre-commit-cache/
 
 .env
-data/
-outputs/
+/data/
+/outputs/

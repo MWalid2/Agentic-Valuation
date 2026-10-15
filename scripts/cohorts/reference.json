@@ -1,0 +1,5 @@
+[
+  {"ticker": "AAPL", "as_of": "2026-10-11", "out": "outputs/apple-data.json"},
+  {"ticker": "KO", "as_of": "2026-10-11", "out": "outputs/coca-cola-data.json"},
+  {"ticker": "NKE", "as_of": "2026-10-11", "out": "outputs/nike-data.json"}
+]
