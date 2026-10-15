@@ -9,6 +9,8 @@ most four times:
 - refresh_sec_data: download the mutable SEC endpoints again (submissions,
   companyfacts) and rerun; filed documents are never re-downloaded
 - retry_prices: rerun collection so the price sources are tried again
+- retry_sources: rerun collection so Damodaran (current page, then archived copies)
+  and FRED are searched again
 - accept_with_flag: continue; the remaining blockers are listed and later steps
   explain what they could not compute
 - ask_user: stop at Gate 1 with the blockers and let the user continue or stop
@@ -37,7 +39,12 @@ from dcf_agent.tools.data import DataTools
 PROMPT_VERSION = "data-loop-v1"
 MAX_STEPS = 4
 Action = Literal[
-    "classify_unknown_lines", "refresh_sec_data", "retry_prices", "accept_with_flag", "ask_user"
+    "classify_unknown_lines",
+    "refresh_sec_data",
+    "retry_prices",
+    "retry_sources",
+    "accept_with_flag",
+    "ask_user",
 ]
 TERMINAL: tuple[Action, ...] = ("accept_with_flag", "ask_user")
 DESCRIPTIONS: dict[Action, str] = {
@@ -46,6 +53,7 @@ DESCRIPTIONS: dict[Action, str] = {
     "refresh_sec_data": "download the SEC filing list and tagged facts again (a filing may be "
     "missing from the saved copy), then rebuild",
     "retry_prices": "try the price sources again",
+    "retry_sources": "search Damodaran (including archived copies) and FRED again",
     "accept_with_flag": "continue; later steps explain what they cannot compute",
     "ask_user": "stop and ask the user whether to continue",
 }
@@ -57,7 +65,18 @@ CONSUMERS: dict[str, tuple[str, ...]] = {
     "value": ("equity_bridge", "wacc", "normalization", "scope"),
     "excel": ("equity_bridge", "wacc", "normalization", "scope"),
 }
+# The sources each plan step needs: a failed source blocks only the plans that use it.
+SEC_FIELDS = {"seed", "history"}
 PRICE_FIELDS = {"prices", "market"}
+SOURCE_FIELDS = {"DGS10", "country_risk", "betas", "spreads", "industry", "macro"}
+NEEDS: dict[str, set[str]] = {
+    "data": SEC_FIELDS,
+    "normalize": SEC_FIELDS,
+    "wacc": SEC_FIELDS | PRICE_FIELDS | SOURCE_FIELDS,
+    "value": SEC_FIELDS | PRICE_FIELDS | SOURCE_FIELDS | {"margins", "sales_to_capital"},
+    "excel": SEC_FIELDS | PRICE_FIELDS | SOURCE_FIELDS | {"margins", "sales_to_capital"},
+}
+RETRYABLE = SOURCE_FIELDS | {"margins", "sales_to_capital", "BAMLC0A0CM", "T10YIE"}
 
 
 class Blocker(BaseModel):
@@ -102,7 +121,13 @@ def required_consumers(plan: tuple[str, ...]) -> set[str]:
     return {c for step in plan for c in CONSUMERS.get(step, ())}
 
 
-def blockers(bundle: DataBundle, consumers: set[str]) -> list[Blocker]:
+def required_sources(plan: tuple[str, ...]) -> set[str]:
+    return {field for step in plan for field in NEEDS.get(step, set())}
+
+
+def blockers(bundle: DataBundle, plan: tuple[str, ...]) -> list[Blocker]:
+    """Blocked readiness consumers and failed sources that this plan needs."""
+    consumers, needed = required_consumers(plan), required_sources(plan)
     found = []
     for consumer in sorted(consumers):
         readiness = bundle.readiness.get(consumer)
@@ -112,7 +137,8 @@ def blockers(bundle: DataBundle, consumers: set[str]) -> list[Blocker]:
             found += [Blocker(consumer=consumer, key=key, reason=r) for r in reasons]
     failed = {c.field: c.message for c in bundle.quality.checks if c.severity == "error"}
     for field in bundle.quality.missing_fields:
-        found.append(Blocker(consumer="quality", key=field, reason=failed.get(field, "failed")))
+        if field in needed:
+            found.append(Blocker(consumer="quality", key=field, reason=failed.get(field, "failed")))
     return found
 
 
@@ -166,16 +192,24 @@ class DataLoop:
             and any(candidates(e) for e in extractions)
         ):
             options.append("classify_unknown_lines")
+
+        def failed(fields: set[str]) -> bool:
+            return any(b.consumer == "quality" and b.key in fields for b in found)
+
         if self.online and "refresh_sec_data" not in tried:
-            if any(b.consumer != "quality" or b.key not in PRICE_FIELDS for b in found):
+            if failed(SEC_FIELDS) or any(b.consumer != "quality" for b in found):
                 options.append("refresh_sec_data")
-        if self.online and "retry_prices" not in tried:
-            if any(b.consumer == "quality" and b.key in PRICE_FIELDS for b in found):
-                options.append("retry_prices")
+        if self.online and "retry_prices" not in tried and failed(PRICE_FIELDS):
+            options.append("retry_prices")
+        if self.online and "retry_sources" not in tried and failed(RETRYABLE):
+            options.append("retry_sources")
         return options + list(TERMINAL)
 
     def policy(self, options: list[Action]) -> Action:
-        return "retry_prices" if "retry_prices" in options else "ask_user"
+        for action in ("retry_prices", "retry_sources"):
+            if action in options:
+                return action
+        return "ask_user"
 
     def choose(
         self, found: list[Blocker], options: list[Action], tried: set[str]
@@ -238,11 +272,10 @@ class DataLoop:
         sec: SECClient | None = None,
     ) -> tuple[DataBundle, DataReview]:
         bundle = collect()
-        consumers = required_consumers(plan)
         steps: list[LoopStep] = []
         tried: set[str] = set()
         for _ in range(self.max_steps):
-            found = blockers(bundle, consumers)
+            found = blockers(bundle, plan)
             if not found:
                 return bundle, DataReview(status="clear", steps=tuple(steps))
             before = tuple(b.text() for b in found)
@@ -273,7 +306,7 @@ class DataLoop:
             finally:
                 if refreshing and sec is not None:
                     sec.stop_refresh()
-            after = tuple(b.text() for b in blockers(updated, consumers))
+            after = tuple(b.text() for b in blockers(updated, plan))
             changes = learned + value_changes(bundle, updated)
             reverted = False
             lost = [c for c in changes if c.endswith("-> None")]
@@ -281,7 +314,7 @@ class DataLoop:
                 # Our own line decisions made the data worse: undo them and rebuild.
                 self.restore_mappings(saved)
                 updated = collect()
-                after = tuple(b.text() for b in blockers(updated, consumers))
+                after = tuple(b.text() for b in blockers(updated, plan))
                 changes = ["reverted: " + c for c in changes] + value_changes(bundle, updated)
                 reverted = True
             steps.append(
@@ -297,7 +330,7 @@ class DataLoop:
                 )
             )
             bundle = updated
-        found = blockers(bundle, consumers)
+        found = blockers(bundle, plan)
         if not found:
             return bundle, DataReview(status="clear", steps=tuple(steps))
         return bundle, self.finish("ask_user", found, steps)

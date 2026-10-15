@@ -172,7 +172,8 @@ def build_graph(
             start = time.monotonic()
             recorder = Recorder(state, config, services)
             update = fn(state, recorder)
-            budget = state.get("budget") or default_budget()
+            # A node may set the budget itself (a follow-up starts a fresh run).
+            budget = update.get("budget") or state.get("budget") or default_budget()
             update["budget"] = budget.model_copy(
                 update={
                     "steps_used": budget.steps_used + 1,
@@ -389,6 +390,39 @@ def build_graph(
             "done": state.get("done", ()) + ("answer",),
         }
 
+    def followup(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        """A new question in a finished session: same company and date, reuse what exists."""
+        question = state["message"].strip()
+        request = state["request"]
+        intent, source = services.router.classify_intent(question)
+        rec.event(
+            "router", "state_change", f"Follow-up intent {intent} by {source}", inputs=question
+        )
+        if intent is None:
+            return {
+                "answer": "I could not tell what this question asks; please rephrase it.",
+                "status": "done",
+            }
+        plan = PLANS.get(intent) or ("answer",)
+        if intent not in PLANS:
+            rec.event("router", "warning", f"{intent} ({INTENTS[intent]}) arrives in a later phase")
+        # Steps whose results the session already holds are not run again.
+        done = tuple(
+            step for step in ("data", "wacc") if step in plan and state.get(step) is not None
+        )
+        updated = ValuationRequest.model_validate(
+            {**request.model_dump(), "intent": intent, "question": question, "plan": plan}
+        )
+        budget = state.get("budget") or default_budget()
+        return {
+            "request": updated,
+            "done": done,
+            "status": "running",
+            "answer": "",
+            # Each question is a run with its own step and time budget.
+            "budget": budget.model_copy(update={"steps_used": 0, "wall_seconds_used": 0.0}),
+        }
+
     def halt(state: GraphState, rec: Recorder) -> dict[str, Any]:
         budget = state.get("budget") or default_budget()
         rec.event("system", "warning", f"Budget exhausted: {budget.model_dump_json()}")
@@ -413,6 +447,7 @@ def build_graph(
     graph = StateGraph(GraphState)
     for name, fn in (
         ("router", router_node),
+        ("followup", followup),
         ("gate0", gate0),
         ("data_review", data_review),
         ("data", data_node),
@@ -422,9 +457,14 @@ def build_graph(
         ("halt", halt),
     ):
         graph.add_node(name, counted(name, fn))  # type: ignore[call-overload]
-    graph.add_edge(START, "router")
+
+    def entry(state: GraphState) -> str:
+        finished = state.get("status") == "done" and state.get("request") is not None
+        return "followup" if finished else "router"
+
+    graph.add_conditional_edges(START, entry, ["router", "followup"])
     targets = ["gate0", "data_review", "data", "wacc", "answer", "unwired", "halt", END]
-    for name in ("router", "gate0", "data", "data_review", "wacc", "unwired"):
+    for name in ("router", "followup", "gate0", "data", "data_review", "wacc", "unwired"):
         graph.add_conditional_edges(name, dispatch, targets)
     graph.add_edge("answer", END)
     graph.add_edge("halt", END)

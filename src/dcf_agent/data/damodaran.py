@@ -1,6 +1,14 @@
-"""Allowlisted NYU tables with dated, immutable raw snapshots."""
+"""Allowlisted NYU tables with dated, immutable raw snapshots.
+
+A table is used only if it was published on or before the valuation date. When no
+copy on hand qualifies (for example a past date, after Damodaran has replaced the
+page with a newer release), the client looks for one: the latest Internet Archive
+(Wayback Machine) capture of the same page made on or before the date. The capture
+date proves the page was public by then; the capture's address is the reference.
+"""
 
 import re
+import time
 from datetime import date, datetime
 from typing import Self
 
@@ -15,6 +23,13 @@ from dcf_agent.data.industry import URL as INDUSTRY_URL
 from dcf_agent.data.industry import IndustryMatch, match_industry, parse_classification
 
 BASE = "https://pages.stern.nyu.edu/adamodar/New_Home_Page/"
+# The pages are published under both paths; captures exist for either.
+ARCHIVED_PATHS = (
+    "pages.stern.nyu.edu/~adamodar/New_Home_Page/",
+    "pages.stern.nyu.edu/adamodar/New_Home_Page/",
+)
+WAYBACK = "https://web.archive.org"
+EMPTY_INDEX = "<html><body></body></html>"
 FILES: dict[Dataset, str] = {
     "betas": "Betas",
     "margins": "margin",
@@ -29,7 +44,13 @@ def _text(node: etree._Element) -> str:
 
 
 def parse_table(
-    dataset: Dataset, document: str, index: str, retrieved: date, as_of: date, version: str
+    dataset: Dataset,
+    document: str,
+    index: str,
+    retrieved: date,
+    as_of: date,
+    version: str,
+    ref: str | None = None,
 ) -> BenchmarkTable:
     try:
         tree = html.fromstring(document)
@@ -63,7 +84,7 @@ def parse_table(
         warnings.append("Publication date not established; eligibility starts at first retrieval")
     if available > as_of:
         raise DataUnavailable("Damodaran version was not available at the requested cutoff")
-    ref = BASE + "datafile/" + FILES[dataset] + ".html"
+    ref = ref or BASE + "datafile/" + FILES[dataset] + ".html"
     rows: list[BenchmarkRow] = []
     for table in tree.iter("table"):
         headers: list[str] | None = None
@@ -77,6 +98,10 @@ def parse_table(
                 headers = cells
                 continue
             if dataset == "spreads" and len(cells) >= 4 and cells[2].lower() == "rating is":
+                if rows:
+                    # Older pages put the smaller-firm scale in the same table: keep
+                    # only the first one, for large non-financial firms.
+                    break
                 headers = ["coverage_min", "coverage_max", "rating", "spread"]
                 continue
             if headers is None:
@@ -153,6 +178,14 @@ def parse_table(
     )
 
 
+def archived_note(table: BenchmarkTable, captured: str) -> BenchmarkTable:
+    note = (
+        f"Archived copy captured {captured} (Internet Archive); the current page was "
+        "published after the valuation date"
+    )
+    return table.model_copy(update={"warnings": (*table.warnings, note)})
+
+
 class DamodaranClient:
     def __init__(
         self,
@@ -164,12 +197,21 @@ class DamodaranClient:
         self.offline = offline
         self.cache = SnapshotCache(config.settings.raw_cache_dir / "damodaran")
         self.http = httpx.Client(timeout=30, trust_env=False, transport=transport)
+        # The archive is slow and rate-limited: long reads, redirects to the exact capture.
+        self.archive = httpx.Client(
+            timeout=httpx.Timeout(30, read=150),
+            trust_env=False,
+            follow_redirects=True,
+            transport=transport,
+        )
+        self.pause = 2.0
 
     def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_: object) -> None:
         self.http.close()
+        self.archive.close()
 
     def get_dataset(
         self, dataset: Dataset, as_of: date, *, refresh: bool = False
@@ -208,7 +250,93 @@ class DamodaranClient:
                 return result
             except (DataUnavailable, ValueError, KeyError, TypeError):
                 continue
-        raise DataUnavailable(fetch_error or f"No eligible saved {dataset} version for {as_of}")
+        archived = self.archived(dataset, as_of)
+        if archived is not None:
+            return archived
+        searched = "the copies on hand and the current page"
+        if not self.offline:
+            searched += " and Internet Archive captures"
+        raise DataUnavailable(
+            f"No {dataset} table published on or before {as_of} found in {searched}"
+            + (f" ({fetch_error})" if fetch_error else "")
+        )
+
+    def archive_get(self, url: str, params: dict[str, str] | None = None) -> httpx.Response:
+        """One polite archive request: paced, with longer waits when rate-limited."""
+        for wait in (0.0, 10.0, 30.0):
+            time.sleep(self.pause + wait)
+            try:
+                response = self.archive.get(url, params=params)
+            except httpx.RequestError:
+                continue
+            if response.status_code == 429 or response.status_code >= 500:
+                continue
+            if response.status_code != 200:
+                raise DataUnavailable(f"Internet Archive returned HTTP {response.status_code}")
+            return response
+        raise DataUnavailable("Internet Archive unavailable or rate-limited")
+
+    def archived(self, dataset: Dataset, as_of: date) -> BenchmarkTable | None:
+        """The latest archived capture published on or before the date, saved for replay."""
+        key = "wayback:" + BASE + "datafile/" + FILES[dataset] + ".html"
+        for saved in self.cache.versions(key):
+            body = saved["body"]
+            if date.fromisoformat(body["captured"]) > as_of:
+                continue
+            try:
+                table = parse_table(
+                    dataset,
+                    body["document"],
+                    EMPTY_INDEX,
+                    date.fromisoformat(body["captured"]),
+                    as_of,
+                    saved["sha256"],
+                    ref=body["ref"],
+                )
+            except (DataUnavailable, ValueError, KeyError, TypeError):
+                continue
+            return archived_note(table, body["captured"])
+        if self.offline:
+            return None
+        captures: list[tuple[str, str]] = []
+        for path in ARCHIVED_PATHS:
+            try:
+                listing = self.archive_get(
+                    WAYBACK + "/cdx/search/cdx",
+                    {
+                        "url": path + "datafile/" + FILES[dataset] + ".html",
+                        "to": as_of.strftime("%Y%m%d"),
+                        "filter": "statuscode:200",
+                        "limit": "-5",
+                    },
+                )
+            except DataUnavailable:
+                continue
+            for line in listing.text.splitlines():
+                fields = line.split()
+                if len(fields) >= 3 and fields[1].isdigit():
+                    captures.append((fields[1], fields[2]))
+        for stamp, original in sorted(set(captures), reverse=True)[:3]:
+            captured = datetime.strptime(stamp[:8], "%Y%m%d").date()
+            if captured > as_of:
+                continue
+            ref = f"{WAYBACK}/web/{stamp}/{original}"
+            try:
+                document = self.archive_get(f"{WAYBACK}/web/{stamp}id_/{original}").text
+                table = parse_table(
+                    dataset, document, EMPTY_INDEX, captured, as_of, f"wayback:{stamp}", ref=ref
+                )
+            except DataUnavailable:
+                continue
+            saved = self.cache.put(
+                key, {"document": document, "captured": captured.isoformat(), "ref": ref}
+            )
+            # Parsed again with the saved snapshot's fingerprint, exactly as a replay is.
+            table = parse_table(
+                dataset, document, EMPTY_INDEX, captured, as_of, saved["sha256"], ref=ref
+            )
+            return archived_note(table, captured.isoformat())
+        return None
 
     def get_classification(self, *, refresh: bool = False) -> tuple[list[dict[str, str]], str]:
         """US company-to-industry rows and their retrieval date (current, not historical)."""

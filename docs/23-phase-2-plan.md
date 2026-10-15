@@ -425,3 +425,61 @@ exposure; a whole-response deadline is a possible follow-up.
 
 576 tests pass (loop: 12, including the undo; Gate 1 pause, continue and stop in
 the graph; refresh once per endpoint).
+
+### Step 7: terminal chat (done, 2026-10-15)
+
+`src/dcf_agent/chat.py` (Typer + Rich), started with
+`uv run python -m dcf_agent.cli chat` (`--offline`, `--mock-model`, `--session`,
+`--today`, `--checkpoints`). The `value` command is unchanged.
+
+| Part | Behaviour |
+|---|---|
+| First message | Goes to the Router; Gate 0 shows company, date, scope, question, plan and notes. Enter confirms; `stop`, `date YYYY-MM-DD`, `ticker XYZ`, `industry <label>` change it; ambiguous or unknown companies list candidates; a company and date alone open the menu (question, quick value, Excel) |
+| Progress | Streamed per graph step with its duration ("Collecting SEC filings, prices, FRED and Damodaran data (5.8s)") |
+| Gate 1 | The data review question; continue or stop |
+| Answers | Rich tables from the sourced answer body; `/sources` lists every source entry (link, filing date, period, derivation) |
+| Follow-ups | A new question in a finished session goes to a `followup` graph node: intent by patterns then the model, same company and date, steps already done (data, WACC) not run again, a fresh step budget per question |
+| Sessions | One checkpoint thread per session; `/resume` lists saved sessions, `/resume ID` continues one (also one waiting at a gate); `/new` starts over; `/state` shows company, date, plan, steps, readiness, data review, beta decision, budget, approvals and audit events |
+
+**Exit check.** `tests/test_chat.py` (6 scripted sessions): gate, progress,
+WACC answer, `/sources`, follow-up without a second collection, `/state`,
+`/quit`; ambiguous company then the menu; stop then a new company; resume a
+finished session and ask again from the checkpoint; resume a session waiting at
+Gate 0; the Gate 1 review. Real walkthrough (live data, local models, input
+piped): Coca-Cola confirmed at Gate 0, data and WACC in 6.3 seconds (7.71%,
+beta method by the WACC Agent), `/sources` with 15 entries, two follow-ups
+("where does the revenue number come from?", "show the operating margin trend")
+answered in under half a second each from the session's data, `/state`, `/quit`.
+Found on the way: a follow-up's fresh budget was overwritten by the step counter
+(fixed; tested). 582 tests pass.
+
+Quick value and full Excel still run through the `value` command with an
+assumptions file; in the chat they are classified and reported as later-phase
+steps.
+
+### After Step 7: data the session does not have is searched for (2026-10-15)
+
+A chat valuing Coca-Cola at 2025-12-31 stopped at the data review: every
+Damodaran table on hand was the January 2026 release, published after the
+valuation date, so the point-in-time rule rejected it, and nothing looked for an
+older one. Damodaran's own archive has only yearly Excel files up to 2024.
+
+- **Archived copies.** `DamodaranClient.get_dataset` now searches when no copy on
+  hand was published by the date: the latest Internet Archive (Wayback Machine)
+  capture of the same page made on or before the date, parsed with the same
+  parser. The capture date is the evidence of publication; the capture address is
+  every value's reference; the copy is saved for offline replay. Requests are
+  paced (the archive rate-limits). Coca-Cola at 2025-12-31: all five tables found
+  (January 2025 release; e.g. soft-beverage unlevered beta 0.51 versus 0.58 in
+  January 2026), WACC 6.17% with a 4.14% risk-free rate.
+- **Parser fix found on the way.** Older rating-spread pages hold the smaller-firm
+  scale in the same table; only the first (large non-financial firms) is read.
+- **The plan says which data is needed.** Each plan step declares the sources it
+  needs (data and normalize: the SEC seed and history; wacc: prices, market,
+  DGS10, country risk, betas, spreads, industry, macro; value and excel: also
+  margins and sales-to-capital). A failed source blocks only plans that need it.
+- **New loop action `retry_sources`:** search Damodaran (including archived
+  copies) and FRED again; the default action when such a source failed.
+
+585 tests pass (archived copy selected, cited and replayed offline; a capture
+after the date never used; source needs per plan; retry by default).

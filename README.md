@@ -1,8 +1,28 @@
 # Agentic Valuation
 
-A local DCF valuation assistant. See [the documentation](docs/README.md) for the
-architecture, agents, stack, and roadmap. Phase 0 is in progress; valuation
-functionality has not been implemented yet.
+A local DCF valuation assistant for US non-financial companies. See
+[the documentation](docs/README.md) for the architecture, agents, stack, and
+roadmap. Phase 1 (data layer and valuation core) is complete; Phase 2 (Router,
+graph, agents and terminal chat) is described in
+[the Phase 2 plan](docs/23-phase-2-plan.md).
+
+## Using it
+
+```powershell
+# Chat: name a company and a date, confirm at Gate 0, then ask questions
+uv run python -m dcf_agent.cli chat
+#   you> Coca-Cola, 2026-10-11, what WACC would you use?
+#   commands: /sources /state /resume [id] /new /help /quit
+#   options: --offline (saved responses only), --mock-model (no Ollama), --session ID
+
+# Full valuation with an assumptions file, Excel workbook and parity check
+uv run python -m dcf_agent.cli value KO 2026-10-11 `
+  --assumptions examples/assumptions/coca-cola.yaml --out outputs/ko-model.xlsx
+```
+
+The chat answers data, history, cost-of-capital and provenance questions; every
+number carries a numbered source. Quick value and the Excel model run through
+the `value` command until the Forecast Agent exists (Phase 4).
 
 Typed application configuration is available through `dcf_agent.config.load_config`.
 See [the configuration guide](docs/07-configuration.md). Provisional model tags
@@ -60,7 +80,7 @@ mode for development. Source edits are available without reinstalling it.
 The distribution name is `agentic-valuation`; its Python import name is
 `dcf_agent`, matching the architecture document.
 
-The root `main.py` is still the uv starter script, not a valuation CLI.
+The root `main.py` is still the uv starter script; the CLI is `dcf_agent.cli`.
 
 The rebuilt [SEC EDGAR agent](docs/12-sec-edgar-adapter.md) reads dated filings
 through controlled tools and proposes a cited debt breakdown. Python validates

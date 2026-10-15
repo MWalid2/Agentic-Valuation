@@ -256,8 +256,16 @@ def value(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["chat"]:
+        # The interactive chat is a Typer app (dcf_agent.chat); it owns its options.
+        from dcf_agent.chat import app
+
+        app(argv[1:], prog_name="dcf_agent chat")
+        return 0
     parser = argparse.ArgumentParser(prog="dcf_agent", description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("chat", help="Interactive chat (see: chat --help)")
     v = commands.add_parser("value", help="Value a company and build the Excel model")
     v.add_argument("ticker")
     v.add_argument("date", help="Valuation date, YYYY-MM-DD")

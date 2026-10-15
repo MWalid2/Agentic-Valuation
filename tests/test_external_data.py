@@ -237,3 +237,38 @@ def test_prices_reject_unusable_data(problem):
     }
     with pytest.raises(DataUnavailable):
         parse_prices("AAPL", START, CUTOFF, saved, [])
+
+
+def test_damodaran_finds_an_archived_copy_published_by_a_past_date(tmp_path):
+    """The current page is newer than the date: the latest earlier capture is used."""
+    config = configuration(tmp_path)
+    current = (FIXTURES / "betas.html").read_text()
+    older = current.replace("January 2026", "January 2025")
+    capture = "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/Betas.html"
+    requested = []
+
+    def respond(request):
+        requested.append(str(request.url))
+        if request.url.host == "web.archive.org":
+            if request.url.path == "/cdx/search/cdx":
+                assert request.url.params["to"] == "20251231"
+                rows = [f"key 20251220002928 {capture} text/html 200 D 1"]
+                return httpx.Response(200, text="\n".join(rows))
+            assert request.url.path == f"/web/20251220002928id_/{capture}"
+            return httpx.Response(200, text=older)
+        name = "index" if request.url.path.endswith("datacurrent.html") else "betas"
+        return httpx.Response(200, text=(FIXTURES / f"{name}.html").read_text())
+
+    with DamodaranClient(config, transport=httpx.MockTransport(respond)) as client:
+        client.pause = 0
+        found = client.get_dataset("betas", date(2025, 12, 31))
+    assert found.analysis_on == date(2025, 1, 1)
+    assert found.available_on == date(2025, 12, 20)  # the capture proves publication
+    assert found.ref == f"https://web.archive.org/web/20251220002928/{capture}"
+    assert any("Internet Archive" in w for w in found.warnings)
+    assert all(v.prov.ref == found.ref for r in found.rows for v in r.values.values())
+    with DamodaranClient(config, offline=True) as client:
+        replay = client.get_dataset("betas", date(2025, 12, 31))
+        assert replay == found  # saved for offline replay, identical
+        with pytest.raises(DataUnavailable, match="published on or before 2025-06-30"):
+            client.get_dataset("betas", date(2025, 6, 30))  # the capture is later

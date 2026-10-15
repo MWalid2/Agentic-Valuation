@@ -125,7 +125,7 @@ def test_failed_prices_are_retried_and_the_change_is_recorded():
 
 
 def test_offline_has_no_network_actions():
-    found = blockers(make(failed=("prices",)), {"wacc"})
+    found = blockers(make(failed=("prices",)), ("wacc",))
     options = DataLoop(None, None, online=False).applicable(make(), found, None, set())
     assert options == ["accept_with_flag", "ask_user"]
 
@@ -241,3 +241,15 @@ def test_line_decisions_that_lose_a_value_are_undone(tmp_path, monkeypatch):
     assert "reverted: mapping ex:TaxCredits -> receivables" in step.changes
     assert any(c.startswith("reverted: annual 2025-12-31 payables") for c in step.changes)
     assert value_changes(first, bundle) == []  # the data is as it was
+
+
+def test_failed_sources_block_only_the_plans_that_need_them():
+    bundle = make(failed=("betas", "spreads"))
+    assert blockers(bundle, ("data", "answer")) == []  # a data question does not use them
+    assert {b.key for b in blockers(bundle, ("data", "wacc", "answer"))} == {"betas", "spreads"}
+
+
+def test_failed_damodaran_tables_are_searched_again_by_default():
+    collect = Collector(make(failed=("betas", "country_risk")), make())
+    _, review = DataLoop(None, None, online=True).run(collect, ("wacc",))
+    assert [s.action for s in review.steps] == ["retry_sources"] and review.status == "clear"
