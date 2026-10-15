@@ -2,9 +2,10 @@
 
 A local DCF valuation assistant for US non-financial companies. See
 [the documentation](docs/README.md) for the architecture, agents, stack, and
-roadmap. Phase 1 (data layer and valuation core) is complete; Phase 2 (Router,
-graph, agents and terminal chat) is described in
-[the Phase 2 plan](docs/23-phase-2-plan.md).
+roadmap. Phases 1 (data layer and valuation core) and 2 (Router, graph, Data and
+WACC agents, terminal chat) are complete; results and known limits are in
+[the Phase 2 plan](docs/23-phase-2-plan.md). Next: Phase 3 (filings RAG,
+Normalization Agent, Gate 1).
 
 ## Using it
 

@@ -93,6 +93,15 @@ terminal chat).
 - WACC for 10 companies is within ±0.3% of the deterministic CLI result for the same inputs (the agent adds reasoning, not drift).
 - Every number in an answer has a provenance record.
 
+**Phase 2 complete (2026-10-15):** Router 50/50 on the 50-prompt set; WACC Agent
+10/10 companies within 0.3 pt of the CLI (qwen3:4b); 4,231 answer figures across
+393 answers, none without a source. Automatic collection from a ticker and a date,
+LangGraph with Gate 0 and Gate 1 and SQLite checkpoints, a Data Agent loop with
+guarded actions (52-company cohort: every blocker handled or explained, no
+unrecorded change), archived Damodaran copies for past dates, and a terminal chat
+with follow-up questions. Results, latency and known limits:
+[23-phase-2-plan.md](23-phase-2-plan.md). Next: Phase 3.
+
 ---
 
 ## Phase 3: Filings RAG + Normalization Agent + Gate 1 (about 3 weeks)
