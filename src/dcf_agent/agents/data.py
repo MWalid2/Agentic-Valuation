@@ -230,6 +230,22 @@ class DataAgent:
             except (SECError, DataUnavailable, ValidationError) as error:
                 history_issues["construction"] = str(error)
                 record("history", False, str(error))
+        insights = None
+        if tools.filings is not None:
+            try:
+                insights, raw, notes = tools.get_filing_insights(raw)
+                record(
+                    "filings",
+                    True,
+                    f"{len(insights.dilutive_securities)} dilutive securities, "
+                    f"{len(insights.lease_liabilities)} lease rates, "
+                    f"{len(insights.tax_items)} marginal tax rates, "
+                    f"{len(insights.captive_finance)} captive-finance splits read from the filings",
+                )
+                for note in notes:
+                    record("filings", False, note, warning=True)
+            except (SECError, DataUnavailable, ValidationError) as error:
+                record("filings", False, "Filing insights: " + str(error), warning=True)
         try:
             scope = tools.get_scope()
         except SECError as error:
@@ -392,6 +408,7 @@ class DataAgent:
             rates=rates,
             benchmarks=benchmarks,
             industry=selection,
+            filing_insights=insights,
             quality=DataQualityReport(
                 as_of=as_of,
                 checks=tuple(checks),

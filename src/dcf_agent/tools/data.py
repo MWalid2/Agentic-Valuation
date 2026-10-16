@@ -3,10 +3,11 @@
 import re
 from dataclasses import dataclass
 from datetime import date
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from dcf_agent.agents.lines import MappingStore
 from dcf_agent.agents.snapshot import SnapshotAgent, SnapshotResult
+from dcf_agent.contracts.accounting import FilingInsights
 from dcf_agent.contracts.external import BenchmarkTable, Dataset, InputReadiness, PriceHistory
 from dcf_agent.contracts.inputs import (
     FinancialConcept,
@@ -31,6 +32,9 @@ from dcf_agent.data.statement_values import StatementValue, statement_values
 from dcf_agent.data.xbrl import XBRLPackage, read_package
 from dcf_agent.tools.edgar import EDGARTools, EvidenceCell
 from dcf_agent.tools.snapshot import Section, read_filing_facts, read_statement
+
+if TYPE_CHECKING:  # the filing parser imports this module
+    from dcf_agent.rag.index import FilingIndex
 
 ToolName = Literal[
     "get_filing_seed",
@@ -94,8 +98,11 @@ class DataTools:
         prices: PriceClient,
         snapshot_result: SnapshotResult | None = None,
         mappings: MappingStore | None = None,
+        filings: "FilingIndex | None" = None,
     ) -> None:
         self.request = request
+        # Filing text index for notes and tables; None skips filing insights.
+        self.filings = filings
         # Reviewed extension-line decisions; history itself makes no model calls.
         self.mappings = mappings
         self.extractions: tuple[Extraction, ...] = ()
@@ -179,6 +186,24 @@ class DataTools:
             self.sec, seed, self.mappings, self.audit
         )
         return result, issues
+
+    def get_filing_insights(
+        self, raw: RawFinancials | None
+    ) -> tuple[FilingInsights, RawFinancials | None, list[str]]:
+        """Dilution, lease rate, marginal tax and captive split from the filings (no model)."""
+        self.audit.append("get_filing_insights")
+        # Imported here: the filing parser uses this module's filing selection.
+        from dcf_agent.rag.filings import filing_texts
+        from dcf_agent.rag.insights import load, read_insights
+
+        if self.filings is None:
+            raise DataUnavailable("No filing index configured")
+        cik, as_of = self.request.cik, self.request.valuation_date
+        texts = filing_texts(self.sec, cik, as_of)
+        for text in texts:
+            self.filings.add(text, cik)
+        filings = load(self.filings, [t.accession for t in texts])
+        return read_insights(filings, cik, as_of, raw)
 
     def get_scope(self) -> InputReadiness:
         """v1 scope from SEC metadata and the latest filing's own XBRL."""

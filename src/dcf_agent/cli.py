@@ -23,7 +23,7 @@ from dcf_agent.contracts.modeling import ForecastAssumptions, ValuationResult, W
 from dcf_agent.contracts.provenance import Provenance, Sourced
 from dcf_agent.data.cache import DataUnavailable
 from dcf_agent.data.prices import PriceClient
-from dcf_agent.engine.assemble import Assembled, AssemblyError, assemble
+from dcf_agent.engine.assemble import Assembled, AssemblyError, assemble, lease_rate
 from dcf_agent.engine.dcf import EngineError, drivers_from, run_dcf, sensitivity, weighted_value
 from dcf_agent.engine.normalize import NormalizationError, Policy, normalize
 from dcf_agent.engine.wacc import Regression, WaccError, compute_wacc, regression_beta
@@ -159,11 +159,17 @@ def value(args: argparse.Namespace) -> int:
     marginal = float(spec["marginal_tax_rate"])
     regression, regression_note = market_regression(bundle, args.market, args.offline)
     try:
-        assembled = assemble(bundle, marginal_tax=marginal, regression=regression)
+        # The assumptions file's marginal rate rules here (forecast taxes converge to it).
+        assembled = assemble(
+            bundle, marginal_tax=marginal, regression=regression, filings_tax=False
+        )
         wacc = compute_wacc(assembled.wacc_inputs)
         normalized, normalize_issues = (
             normalize(
-                bundle.raw, Policy(marginal_tax_rate=marginal, lease_rate=wacc.pretax_kd.value)
+                bundle.raw,
+                Policy(
+                    marginal_tax_rate=marginal, lease_rate=lease_rate(bundle, wacc.pretax_kd.value)
+                ),
             )
             if bundle.raw is not None
             else (None, {})

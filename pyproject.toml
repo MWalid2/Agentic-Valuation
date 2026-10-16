@@ -12,6 +12,7 @@ description = "A local, deterministic-first DCF valuation assistant"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "fastembed>=0.9.0",
     "httpx>=0.28.1",
     "langgraph>=1.2.14",
     "langgraph-checkpoint-sqlite>=3.1.1",
@@ -20,7 +21,7 @@ dependencies = [
     "pydantic>=2.14.0",
     "pydantic-settings>=2.15.0",
     "pyyaml>=6.0.3",
-    "rich>=15.0.0",
+    "rich>=14,<15",
     "typer>=0.27.3",
     "yfinance>=1.7.0",
 ]
@@ -28,11 +29,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "hypothesis>=6.169.0",
+    "langchain-community<0.4",
+    "langchain-ollama>=1.1.0",
     "lxml-stubs>=0.5.1",
     "mypy>=2.4.0",
     "pre-commit>=4.6.2",
     "psutil>=7.2.2",
     "pytest>=9.1.1",
+    "ragas>=0.4.3",
     "ruff>=0.17.0",
     "types-openpyxl>=3.1.5.20260827",
     "types-psutil>=7.2.2.20260906",

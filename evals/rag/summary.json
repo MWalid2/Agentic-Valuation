@@ -1,0 +1,33 @@
+{
+  "dev": {
+    "questions": 514,
+    "companies": 34,
+    "fields": {
+      "debt": 111,
+      "leases": 172,
+      "dilution": 71,
+      "tax": 137,
+      "one_off": 21,
+      "pension": 2
+    },
+    "with_distractors": 199
+  },
+  "test": {
+    "questions": 225,
+    "companies": 17,
+    "fields": {
+      "debt": 41,
+      "leases": 85,
+      "tax": 66,
+      "one_off": 10,
+      "dilution": 23
+    },
+    "with_distractors": 82
+  },
+  "narrative": {
+    "drafts": 30,
+    "companies": 22,
+    "candidates": 231
+  },
+  "sha256_gold_xbrl": "a72c9a125c3f9af576c17441099970f8b4c9dd30af4bc2c47f5161f7f897fa27"
+}

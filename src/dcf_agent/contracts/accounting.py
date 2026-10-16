@@ -133,6 +133,10 @@ class FilingInsights(InputContract):
     contingent_liabilities: tuple[FilingItem, ...] = ()
     non_operating_assets: tuple[FilingItem, ...] = ()
     risk_flags: tuple[FilingItem, ...] = ()
+    # The marginal tax rate read from the rate reconciliation, with its evidence.
+    tax_items: tuple[FilingItem, ...] = ()
+    # Captive-finance debt read from a consolidating statement, one item per period.
+    captive_finance: tuple[FilingItem, ...] = ()
 
     @model_validator(mode="after")
     def validate_insight_dates(self) -> Self:

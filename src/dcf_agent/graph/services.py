@@ -22,6 +22,7 @@ from dcf_agent.data.sec import SECClient
 from dcf_agent.graph.state import GraphState
 from dcf_agent.graph.workflow import Services
 from dcf_agent.llm import LocalLLM
+from dcf_agent.rag.index import FilingIndex
 from dcf_agent.tools.data import DataTools
 
 # US federal 21% plus a typical state rate (Damodaran's US marginal rate).
@@ -58,6 +59,7 @@ class LiveServices:
             damodaran=self.damodaran,
             prices=self.prices,
             mappings=MappingStore(self.config.settings.project_root / "data/mappings"),
+            filings=FilingIndex(self.config.settings.project_root / "data/rag/index.sqlite"),
         )
 
         def run() -> DataBundle:
