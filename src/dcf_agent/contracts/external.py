@@ -5,6 +5,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from dcf_agent.contracts.accounting import FilingInsights
 from dcf_agent.contracts.inputs import (
     FinancialConcept,
     InputContract,
@@ -123,6 +124,8 @@ class DataBundle(InputContract):
     rates: dict[str, MacroObservation] = Field(default_factory=dict)
     benchmarks: dict[Dataset, BenchmarkTable] = Field(default_factory=dict)
     industry: IndustrySelection | None = None
+    # Read from the filings' notes and tables (dilution, lease rate, tax, captive split).
+    filing_insights: FilingInsights | None = None
     quality: DataQualityReport
     tool_calls: tuple[str, ...] = ()
     # Source fingerprint of the code that built this bundle; None marks a legacy bundle.
@@ -149,4 +152,7 @@ class DataBundle(InputContract):
             r.rate.prov.as_of > cutoff for r in self.rates.values()
         ):
             raise ValueError("External evidence exceeds or differs from request cutoff")
+        insights = self.filing_insights
+        if insights is not None and (insights.cik != self.request.cik or insights.as_of != cutoff):
+            raise ValueError("Filing insights do not match request identity/cutoff")
         return self

@@ -83,7 +83,8 @@ Banks, insurers and REITs are rejected or redirected at intake: an FCFF DCF is t
 | [`20-general-history-plan.md`](20-general-history-plan.md) | Plan for history that generalizes to all US non-financial companies; progress log |
 | [`21-data-agent-explained.md`](21-data-agent-explained.md) | Plain-language overview: what the Data Agent does, its sources, and how results were made exact |
 | [`22-valuation-core.md`](22-valuation-core.md) | Normalizer, DCF engine, WACC calculators, Excel workbook with LibreOffice parity, and the CLI |
-| [`23-phase-2-plan.md`](23-phase-2-plan.md) | Phase 2 plan: Router, Gate 0, Data and WACC agents, answers, LangGraph and terminal chat |
+| [`23-phase-2-plan.md`](23-phase-2-plan.md) | Phase 2 plan, progress and acceptance results: Router, Gates 0 and 1, Data and WACC agents, sourced answers, LangGraph, terminal chat, latency, known limits |
+| [`24-phase-3a-plan.md`](24-phase-3a-plan.md) | Phase 3a plan: filings RAG (sections from inline-XBRL text blocks, hybrid retrieval), Filings Analyst, Normalization Agent, Gate 1, RAGAS evaluation |
 | [`phase-0-acceptance.md`](phase-0-acceptance.md) | Completed foundation checks, wrapper results, memory evidence, and limitations |
 | [`benchmarks-light.md`](benchmarks-light.md) | Revised benchmark results for lighter candidates using explicit intent definitions |
 | [`benchmarks.md`](benchmarks.md) | Measured local CPU throughput, structured-output validity, and memory observations |

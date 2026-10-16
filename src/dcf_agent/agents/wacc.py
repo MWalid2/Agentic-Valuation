@@ -178,7 +178,8 @@ class WaccAgent:
         inputs = assemble(bundle, marginal_tax=self.marginal_tax).wacc_inputs
         weekly, monthly, issues = self.regressions(bundle)
         de = inputs.debt_value.value / inputs.equity_value.value
-        bottom_up = relever(inputs.industry.values[UNLEVERED_BETA].value, de, self.marginal_tax)
+        tax = inputs.marginal_tax.value  # the filing's rate when read, else the policy
+        bottom_up = relever(inputs.industry.values[UNLEVERED_BETA].value, de, tax)
         rule_name, _, rule_note = choose_beta(bottom_up, weekly)
         rule: BetaMethod = "regression" if rule_name == "regression" else "bottom_up"
         evidence = [f"Bottom-up beta {bottom_up:.2f} ({inputs.industry.name})"]

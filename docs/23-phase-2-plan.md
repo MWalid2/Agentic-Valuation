@@ -483,3 +483,59 @@ older one. Damodaran's own archive has only yearly Excel files up to 2024.
 
 585 tests pass (archived copy selected, cited and replayed offline; a capture
 after the date never used; source needs per plan; retry by default).
+
+### Step 8: evaluation (done, 2026-10-15)
+
+Every check was run again on the final code (after all Step 1-7 fixes).
+
+**Phase 2 acceptance**
+
+| Criterion (roadmap) | Target | Result | Status |
+|---|---|---|---|
+| Router: company resolution and intent on a 50-prompt set (ambiguous names, relative dates) | at least 95% | 50/50 (company 50, date 50, intent 50, scope 50) | Met |
+| WACC Agent within the deterministic CLI result | 10 companies within 0.3 pt | 10/10, all identical, none flagged | Met |
+| Every number in an answer has a provenance record | all | 393 answers, 4,231 figures, none uncited (`tests/test_answer.py`) | Met |
+
+Supporting checks:
+
+| Check | Result |
+|---|---|
+| Router, rules only / model only for intent | 45/50 (the five free-form sentences need the model) / 47/50 (23 of 26 questions) |
+| Router, 15 prompts written after the set | companies and dates 15/15; intents 13/15 (both phrasings then added) |
+| WACC Agent model choice | qwen3:1.7b 5/10 (averaged against its own evidence); qwen3:4b 10/10 |
+| Data Agent loop, 52-company cohort, full valuation plan | 30 clear, 1 flagged, 21 ask the user; 52/52 explained; 0 unrecorded changes; 0 errors; 18 minutes |
+| Graph | interrupt at Gate 0, resume, finish; restart from the SQLite checkpoint; Gate 1 continue and stop |
+| Chat | 6 scripted sessions; live walkthroughs (Coca-Cola at 2026-10-11 and at 2025-12-31) |
+| Phase 1 regression | extraction references 111/111; reference bundles 3/3 pass (10/10 values each) |
+| Tests and local checks | 585 tests; ruff, format and mypy (as the commit hook runs them) pass |
+
+**Latency on this CPU** (`scripts/measure_latency.py`; model response cache off;
+collection replays saved source responses)
+
+| Stage | Time |
+|---|---|
+| Router, `<company>, <date>, <question>` | 0.02-0.13 s (no model) |
+| Router, free-form sentence (model extracts the company) | 4-7 s |
+| Router, question no pattern recognizes (model picks the intent) | 7.4 s |
+| Data collection | 6 s (first download of a company: 15-60 s) |
+| WACC Agent (two regressions, qwen3:4b choice) | 21.5 s |
+| Chat: first message to Gate 0 | 0.1 s |
+| Chat: confirm to WACC answer | 26.7 s |
+| Chat: follow-up question (data and WACC reused) | 0.3 s |
+
+**Known limits, carried forward**
+
+| Limit | Where it is addressed |
+|---|---|
+| Quick value and the Excel model run only through the `value` command with an assumptions file | Phase 4 (Forecast Agent, Gate 2) |
+| Shares are the cover-page count; options, RSUs and convertibles are not extracted | Phase 3 (Filings Analyst, RAG) |
+| Debt schedules, lease details and one-off items in notes are not read | Phase 3 |
+| Marginal tax rate is a fixed 25% US policy value | Phase 3/4 (company-specific rate decision) |
+| Model tokens are not counted in the run budget (steps and time are) | Phase 6 hardening |
+| Undo of line classifications is all-or-nothing (MIST gives up nine older receivables values) | Per-decision undo, Phase 3 |
+| No deadline on a whole SEC download (one 2-hour stall before the refresh fix; not seen since) | Phase 6 hardening |
+| Damodaran's company-to-industry file is current, not historical (the user confirms at Gate 0) | Accepted; noted in each bundle |
+| Deere's captive-finance debt is not split in its latest balance sheet: WACC is refused | Correct per policy; Phase 3 notes could supply the split |
+
+**Phase 2 complete.** Next: Phase 3, Filings RAG, the Normalization Agent and
+Gate 1 (adjustments).

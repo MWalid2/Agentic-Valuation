@@ -669,3 +669,30 @@ def test_consolidated_profit_anchors_the_period_and_is_net_income_without_minori
 def test_consolidated_profit_is_not_parent_net_income_when_minority_is_presented():
     result = profit_loss_statement(minority=True)
     assert at(result, "net_income", (START, END)).status != "reported"
+
+
+def test_label_guards_use_word_boundaries():
+    import re
+
+    from dcf_agent.agents.lines import IMPLAUSIBLE, PLAUSIBLE
+
+    assert re.search(PLAUSIBLE["cash"], "cash and cash equivalents held by subsidiaries")
+    assert not re.search(PLAUSIBLE["cash"], "cashless exercise of warrants")
+    # "Cost of sales" names sales but is a cost: never accepted as revenue.
+    assert re.search(IMPLAUSIBLE["revenue"], "cost of sales")
+    assert not re.search(IMPLAUSIBLE["revenue"], "net sales to customers")
+
+
+def test_no_control_characters_in_source():
+    """Shell-edited regexes once held backspace characters instead of word boundaries."""
+    root = Path(__file__).resolve().parents[1]
+    bad = []
+    for path in [
+        *root.glob("src/**/*.py"),
+        *root.glob("scripts/**/*.py"),
+        *root.glob("tests/*.py"),
+    ]:
+        text = path.read_text(encoding="utf-8")
+        if any(ord(ch) < 32 and ch not in "\n\r\t" for ch in text):
+            bad.append(str(path.relative_to(root)))
+    assert bad == []

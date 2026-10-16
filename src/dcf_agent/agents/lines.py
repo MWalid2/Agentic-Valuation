@@ -56,7 +56,7 @@ PLAUSIBLE: dict[Category, str] = {
     "operating_lease": r"lease",
     "finance_lease": r"lease",
     "payables": HINTS["payables"],
-    "cash": r"cash",
+    "cash": r"\bcash\b",
     "marketable_securities": HINTS["marketable_securities"],
     "receivables": HINTS["receivables"],
     "inventory": HINTS["inventory"],
@@ -79,7 +79,7 @@ PLAUSIBLE: dict[Category, str] = {
 IMPLAUSIBLE: dict[Category, str] = {
     "dividends": r"non-?controlling|minority|preferred|subsidiar",
     "buybacks": r"non-?controlling|minority|preferred|subsidiar",
-    "revenue": r"costs?|expense",
+    "revenue": r"\bcosts?\b|expense",
     "receivables": r"payable",
     "payables": r"receivable",
 }

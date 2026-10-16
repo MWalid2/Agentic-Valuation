@@ -750,8 +750,13 @@ def extract(
         found = resolve(
             "balance_sheet", {"temporary_equity"}, period, "temporary_equity", additive=True
         )
+        mapped = [
+            values[c]
+            for c in ("preferred_equity", "minority_interest")
+            if values[c].value is not None and "temporary equity" in (values[c].basis or "")
+        ]
         if found is None:
-            return absent(
+            missing = absent(
                 "balance_sheet",
                 period,
                 "equity",
@@ -759,13 +764,20 @@ def extract(
                 "temporary equity",
                 "temporary_equity",
             )
+            notes = note_facts({"temporary_equity"}, period)
+            # The mapped claims in total, and each of their statement lines.
+            claimed = {sum(m.value.value for m in mapped if m.value is not None)}
+            claimed |= {v for m in mapped for v in line_values(m, period[1])}
+            if missing.status == "unresolved" and notes and mapped:
+                if all(any(abs(f.value - c) <= 1 for c in claimed) for f in notes):
+                    return ConceptValue(
+                        "not_presented",
+                        reason="Temporary equity in the notes is entirely the preferred stock "
+                        "or noncontrolling interest already mapped",
+                    )
+            return missing
         if found.value is None:
             return found
-        mapped = [
-            values[c]
-            for c in ("preferred_equity", "minority_interest")
-            if values[c].value is not None and "temporary equity" in (values[c].basis or "")
-        ]
         residual = found.value.value - sum(m.value.value for m in mapped if m.value is not None)
         if abs(residual) <= 1:
             return ConceptValue(

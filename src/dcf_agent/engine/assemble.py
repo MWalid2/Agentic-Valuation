@@ -11,7 +11,7 @@ from datetime import date
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import FinancialConcept, FinancialPeriod
 from dcf_agent.contracts.provenance import Provenance, Sourced
-from dcf_agent.engine.dcf import Shares
+from dcf_agent.engine.dcf import Option, Shares
 from dcf_agent.engine.wacc import Regression, WaccInputs
 
 
@@ -102,13 +102,68 @@ def build_bridge(
     return bridge, notes
 
 
+def marginal_tax_rate(
+    bundle: DataBundle, default: float, *, filings: bool = True
+) -> tuple[Sourced[float], str]:
+    """The filing's marginal tax rate (rate reconciliation) when read, else the policy."""
+    items = bundle.filing_insights.tax_items if bundle.filing_insights is not None else ()
+    if filings and items and items[0].amount is not None:
+        return items[0].amount, f"Marginal tax {items[0].amount.value:.2%}: {items[0].description}"
+    as_of = bundle.request.valuation_date
+    return Sourced[float](
+        value=default,
+        prov=Provenance(
+            source="user_override",
+            ref="policy",
+            as_of=as_of,
+            confidence="medium",
+            note="Marginal tax rate policy",
+        ),
+    ), f"Marginal tax {default:.2%}: policy" + (
+        "" if not filings else " (the filings' rate reconciliation was not read)"
+    )
+
+
+def lease_rate(bundle: DataBundle, fallback: float) -> float:
+    """The operating leases' weighted-average discount rate, else the fallback (pre-tax Kd)."""
+    insights = bundle.filing_insights
+    for lease in insights.lease_liabilities if insights is not None else ():
+        if lease.lease_type == "operating" and lease.discount_rate is not None:
+            return lease.discount_rate.value
+    return fallback
+
+
+def shares_of(bundle: DataBundle, basic: float) -> tuple[Shares, str]:
+    """Cover-page shares plus the dilutive securities read from the filings."""
+    insights = bundle.filing_insights
+    securities = insights.dilutive_securities if insights is not None else ()
+    if not securities:
+        return Shares(basic=basic), (
+            "Shares: dated cover-page count; no dilutive securities read from the filings"
+        )
+    units = sum(s.count.value for s in securities if s.kind in ("rsu", "psu"))
+    options = tuple(
+        Option(count=s.count.value, strike=s.strike_price.value)
+        for s in securities
+        if s.kind in ("option", "warrant") and s.strike_price is not None
+    )
+    note = (
+        f"Shares: cover-page count plus {units / 1e6:,.2f}M unvested units and "
+        f"{sum(o.count for o in options) / 1e6:,.2f}M options (treasury stock method) from "
+        "the filings; convertibles are not read yet"
+    )
+    return Shares(basic=basic, rsus=units, options=options), note
+
+
 def assemble(
     bundle: DataBundle,
     *,
     marginal_tax: float,
     leases_as_debt: bool = True,
     regression: Regression | None = None,
+    filings_tax: bool = True,
 ) -> Assembled:
+    """marginal_tax is the policy rate, used unless the filings' rate is read (and wanted)."""
     blocked = {
         name: r.missing
         for name, r in bundle.readiness.items()
@@ -134,16 +189,8 @@ def assemble(
         value=market.close.price.value * market.shares_outstanding.value,
         prov=market.shares_outstanding.prov,
     )
-    tax = Sourced[float](
-        value=marginal_tax,
-        prov=Provenance(
-            source="user_override",
-            ref="policy",
-            as_of=as_of,
-            confidence="medium",
-            note="Marginal tax rate policy",
-        ),
-    )
+    tax, tax_note = marginal_tax_rate(bundle, marginal_tax, filings=filings_tax)
+    notes.append(tax_note)
     ebit = period.values.get("ebit")
     interest = period.values.get("interest_expense")
     industry = bundle.benchmarks["betas"].rows
@@ -177,15 +224,14 @@ def assemble(
     if revenue is None:
         raise AssemblyError("Base revenue is required")
     notes.append(f"Base revenue: {period.kind} ending {period.period_end}")
-    notes.append(
-        "Shares: dated cover-page count; RSUs, options and convertibles are not yet extracted"
-    )
+    shares, shares_note = shares_of(bundle, market.shares_outstanding.value)
+    notes.append(shares_note)
     return Assembled(
         as_of=as_of,
         base_period=period,
         base_revenue=revenue.value,
         wacc_inputs=inputs,
         bridge=bridge,
-        shares=Shares(basic=market.shares_outstanding.value),
+        shares=shares,
         notes=tuple(notes),
     )
