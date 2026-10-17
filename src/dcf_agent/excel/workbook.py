@@ -17,8 +17,14 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from dcf_agent.contracts.accounting import NormalizedFinancials
 from dcf_agent.contracts.inputs import RawFinancials
-from dcf_agent.contracts.modeling import ForecastAssumptions, ValuationResult, WACCResult
+from dcf_agent.contracts.modeling import (
+    CompsResult,
+    ForecastAssumptions,
+    ValuationResult,
+    WACCResult,
+)
 from dcf_agent.contracts.provenance import Sourced
+from dcf_agent.contracts.workflow import CritiqueReport
 from dcf_agent.engine.wacc import UNLEVERED_BETA, WaccInputs
 
 INPUT = Font(color="0000FF")
@@ -38,6 +44,8 @@ class Cells:
     enterprise_value: dict[str, str] = field(default_factory=dict)
     weighted: str = ""
     wacc: str = ""
+    # Sheets whose numbers must all be formulas or blue inputs (the no-hard-code check).
+    calculation_sheets: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -61,6 +69,11 @@ class ModelInputs:
     sensitivity: (
         tuple[Sequence[float], Sequence[float], Sequence[Sequence[float | None]]] | None
     ) = None
+    # Phase 5: the market price, comps, the Critic's report and the changes it made.
+    price: float | None = None
+    comps: CompsResult | None = None
+    critique: CritiqueReport | None = None
+    critic_changes: Sequence[str] = ()
 
 
 def put(
@@ -384,6 +397,41 @@ def build_workbook(m: ModelInputs, path: Path) -> Cells:
     put(ws, f"C{row + 1}", f"={cells.wacc}", RATE)
     put(ws, f"D{row + 1}", f"=C{row + 1}-B{row + 1}", "0.000000")
 
+    if m.critique is not None:
+        row += 3
+        heading(ws, f"A{row}", "Critic")
+        put(
+            ws,
+            f"B{row}",
+            f"score {m.critique.score:.1f} of 5; "
+            f"{'passed' if m.critique.passed else 'not passed'}; "
+            f"{m.critique.revision_count} loops",
+        )
+        for column, title in zip("ABCD", ("Severity", "Issue", "Owner", "Fix"), strict=True):
+            put(ws, f"{column}{row + 1}", title, font=BOLD)
+        for k, issue in enumerate(m.critique.issues, row + 2):
+            for column, text in zip(
+                "ABCD",
+                (issue.severity, issue.description, issue.route_back_to, issue.suggested_fix),
+                strict=True,
+            ):
+                put(ws, f"{column}{k}", text)
+        row += 2 + len(m.critique.issues)
+        for k, change in enumerate(m.critic_changes, row + 1):
+            put(ws, f"A{k}", "Critic change")
+            put(ws, f"B{k}", change)
+
+    comps_range: tuple[str, str] | None = None
+    if m.comps is not None:
+        comps_range = comps_sheet(wb.create_sheet("Comps"), m.comps)
+    cover_sheet(wb, m, cells, comps_range)
+    cells.calculation_sheets = [
+        "Cover",
+        "WACC",
+        "Scenarios",
+        *(f"DCF {a.scenario}" for a in m.scenarios),
+    ]
+
     # Sources and notes.
     ws = wb.create_sheet("Sources")
     ws.column_dimensions["A"].width = 30
@@ -405,3 +453,86 @@ def build_workbook(m: ModelInputs, path: Path) -> Cells:
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
     return cells
+
+
+def comps_sheet(ws: Worksheet, comps: CompsResult) -> tuple[str, str] | None:
+    """Peers' multiples and the engine's quartiles (after outliers); the implied range."""
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["F"].width = 90
+    heading(ws, "A1", "Comparable companies (TTM multiples; engine data, blue = input)")
+    metrics = ("ev_ebitda", "ev_sales", "ev_ebit", "price_earnings")
+    for column, title in zip(
+        "ABCDEF", ("Peer", "EV/EBITDA", "EV/Sales", "EV/EBIT", "P/E", "Why kept"), strict=True
+    ):
+        put(ws, f"{column}2", title, font=BOLD)
+    for k, peer in enumerate(comps.peers, 3):
+        put(ws, f"A{k}", peer.ticker)
+        for column, metric in zip("BCDE", metrics, strict=True):
+            item = getattr(peer, metric)
+            if item is not None:
+                put(ws, f"{column}{k}", item.value, "0.0x", INPUT)
+        put(ws, f"F{k}", peer.selection_rationale[:300])
+    row = 4 + len(comps.peers)
+    heading(ws, f"A{row}", "Quartiles after outliers (engine)")
+    for column, title in zip("BCDEF", ("Metric", "Peers", "Q1", "Median", "Q3"), strict=True):
+        put(ws, f"{column}{row}", title, font=BOLD)
+    for k, summary in enumerate(comps.summaries, row + 1):
+        put(ws, f"B{k}", summary.metric)
+        put(ws, f"C{k}", summary.sample_size, None, INPUT)
+        put(ws, f"D{k}", summary.first_quartile, "0.0x", INPUT)
+        put(ws, f"E{k}", summary.median, "0.0x", INPUT)
+        put(ws, f"F{k}", summary.third_quartile, "0.0x", INPUT)
+    row += 2 + len(comps.summaries)
+    for k, warning in enumerate(comps.warnings, row + 3):
+        put(ws, f"A{k}", "Warning")
+        put(ws, f"B{k}", warning)
+    if comps.implied_value_range is None:
+        return None
+    put(ws, f"A{row}", "Implied value per share (low, high)")
+    put(ws, f"B{row}", comps.implied_value_range[0], PER_SHARE, INPUT)
+    put(ws, f"C{row}", comps.implied_value_range[1], PER_SHARE, INPUT)
+    return f"Comps!$B${row}", f"Comps!$C${row}"
+
+
+def cover_sheet(
+    wb: Workbook, m: ModelInputs, cells: Cells, comps_range: tuple[str, str] | None
+) -> None:
+    """The first sheet: the answer, every number a formula over the model or a blue input."""
+    ws = wb.create_sheet("Cover", 0)
+    ws.column_dimensions["A"].width = 40
+    ws.column_dimensions["B"].width = 18
+    heading(ws, "A1", f"{m.company} ({m.ticker}): DCF valuation")
+    price = f"B{4 + len(m.scenarios)}"
+    gap = f'=IF(ISNUMBER({price}),B3/{price}-1,"n/a")'
+    rows: list[tuple[str, object, str | None, Font | None]] = [
+        ("Valuation date", "=Inputs!B2", "yyyy-mm-dd", None),
+        ("Probability-weighted value per share", f"={cells.weighted}", PER_SHARE, BOLD),
+        *(
+            (
+                f"{a.scenario.capitalize()} value per share",
+                f"={cells.value_per_share[a.scenario]}",
+                PER_SHARE,
+                None,
+            )
+            for a in m.scenarios
+        ),
+        ("Market price", m.price if m.price is not None else "n/a", PER_SHARE, INPUT),
+        ("Value against price", gap, "+0%;-0%", None),
+        ("WACC", f"={cells.wacc}", RATE, None),
+    ]
+    if comps_range is not None:
+        rows += [
+            ("Comps implied value, low", f"={comps_range[0]}", PER_SHARE, None),
+            ("Comps implied value, high", f"={comps_range[1]}", PER_SHARE, None),
+        ]
+    for k, (label, value, fmt, font) in enumerate(rows, 2):
+        put(ws, f"A{k}", label)
+        put(ws, f"B{k}", value, fmt, font)
+    row = 3 + len(rows)
+    if m.critique is not None:
+        put(ws, f"A{row}", "Critic score (of 5; issues on Checks)")
+        put(ws, f"B{row}", m.critique.score, "0.0", INPUT)
+        put(ws, f"A{row + 1}", "Critic review")
+        put(ws, f"B{row + 1}", "passed" if m.critique.passed else "not passed")
+        row += 3
+    put(ws, f"A{row}", "Educational model; not investment advice. Sources on the Sources sheet.")

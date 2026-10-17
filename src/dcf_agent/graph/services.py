@@ -5,6 +5,8 @@ from datetime import date, timedelta
 from typing import Self
 
 from dcf_agent.agents.answer import Answer, render
+from dcf_agent.agents.comps import CompsAgent
+from dcf_agent.agents.critic import risk_passages, run_rubric
 from dcf_agent.agents.data import DataAgent
 from dcf_agent.agents.data_loop import DataLoop, DataReview
 from dcf_agent.agents.forecast import ForecastAgent
@@ -17,7 +19,8 @@ from dcf_agent.config import AppConfig
 from dcf_agent.contracts.accounting import NormalizedFinancials
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import ValuationRequest
-from dcf_agent.contracts.modeling import ForecastScenarios, WACCResult
+from dcf_agent.contracts.modeling import CompsResult, ForecastScenarios, WACCResult
+from dcf_agent.contracts.workflow import CritiqueReport
 from dcf_agent.data.damodaran import DamodaranClient
 from dcf_agent.data.fred import FREDClient
 from dcf_agent.data.prices import PriceClient
@@ -99,12 +102,64 @@ class LiveServices:
         return proposals, flags, tuple(proposal.notes)
 
     def forecast(
-        self, bundle: DataBundle, normalized: NormalizedFinancials, wacc: WACCResult
+        self,
+        bundle: DataBundle,
+        normalized: NormalizedFinancials,
+        wacc: WACCResult,
+        note: str | None = None,
     ) -> tuple[ForecastScenarios | None, tuple[str, ...]]:
         """Bear, base and bull from the Forecast Agent, with its notes."""
         assembled = assemble(bundle, marginal_tax=MARGINAL_TAX)
-        result = ForecastAgent(self.llm).run(bundle, normalized, wacc, assembled)
+        result = ForecastAgent(self.llm).run(bundle, normalized, wacc, assembled, note)
         return result.scenarios, tuple(result.notes)
+
+    def comps(
+        self, bundle: DataBundle, dcf_value: float | None
+    ) -> tuple[CompsResult, dict[str, float]]:
+        """Peers, multiples and the implied range; the target's own figures for the Critic."""
+        request = bundle.request
+        if bundle.industry is None:
+            raise ValueError("no Damodaran industry for the company")
+        classification, _ = self.damodaran.get_classification()
+        agent = CompsAgent(self.sec, self.prices, self.llm)
+        result, _, _, target = agent.run(
+            request.ticker,
+            request.cik,
+            bundle.industry.name,
+            request.valuation_date,
+            classification,
+            dcf_value,
+        )
+        figures = {name: item.value for name, item in target.values.items()}
+        # Period ends (as ordinals), so the Critic compares only like periods.
+        for name, item in target.values.items():
+            if item.prov.period_end is not None:
+                figures[f"{name}_end"] = float(item.prov.period_end.toordinal())
+        if result.implied_value_range is not None and dcf_value and result.divergence_vs_dcf:
+            figures["implied_mid"] = dcf_value / (1 + result.divergence_vs_dcf)
+        return result, figures
+
+    def risks(self, bundle: DataBundle) -> list[tuple[str, str]]:
+        """Risk-factor passages from the 10-K (accession, text), for the Critic's rubric."""
+        request = bundle.request
+        texts = filing_texts(self.sec, request.cik, request.valuation_date)
+        annual = [t.accession for t in texts if t.form.startswith("10-K")]
+        if not annual:
+            return []
+        index = self.index()
+        for text in texts:
+            index.add(text, request.cik)
+        hits = index.search(
+            "risk factors could adversely affect our business results of operations",
+            annual,
+            k=6,
+        )
+        return risk_passages([(f"accession {h.accession}", h.text) for h in hits])
+
+    def rubric(self, state: GraphState, report: CritiqueReport) -> CritiqueReport:
+        bundle = state.get("data")
+        risks = self.risks(bundle) if bundle is not None else []
+        return run_rubric(self.llm, dict(state), report, risks)
 
     def wacc(self, bundle: DataBundle) -> tuple[WACCResult, WaccDecision | None]:
         agent = WaccAgent(self.prices.get_price_history, self.llm, marginal_tax=MARGINAL_TAX)
@@ -121,5 +176,9 @@ class LiveServices:
             answer=self.answer,
             normalize=self.normalize,
             forecast=self.forecast,
+            comps=self.comps,
+            rubric=self.rubric,
             models=self.config.settings.project_root / "outputs/models",
+            risks=self.risks,
+            reports=self.config.settings.project_root / "outputs/reports",
         )

@@ -103,7 +103,39 @@ def test_quick_value_runs_through_the_graph(tmp_path: Path):
     )
     graph = build_graph(services, open_checkpointer(tmp_path / "c.sqlite"))
     start(graph, "v1", f"{data.request.ticker}, {data.request.valuation_date}")
-    final = resume(graph, "v1", {"action": "confirm", "output": "quick"})
+    shown = resume(graph, "v1", {"action": "confirm", "output": "quick"})
+    assert shown["__interrupt__"][0].value["kind"] == "assumptions"  # Gate 2 before the DCF
+    final = resume(graph, "v1", {"action": "approve"})
     assert final["status"] == "done" and final["valuation"].weighted > 0
-    assert final["done"][-3:] == ("forecast", "value", "answer")
+    assert [a.gate for a in final["approvals"]][-1] == 2
+    assert final["done"][-5:] == ("forecast", "value", "comps", "critic", "answer")
+    assert final["critique"].passed and final["critique"].revision_count == 0
     assert "Value per share (probability-weighted)" in final["answer"]
+
+
+def test_every_number_in_the_valuation_is_sourced_and_justified():
+    from dcf_agent.engine.audit import audit_records, audit_state
+
+    data, wacc, forecast, valuation = pieces()
+    assert data.raw is not None
+    normalized = normalize(data.raw, Policy(marginal_tax_rate=0.25))[0]
+    result = audit_state(
+        {"data": data, "normalized": normalized, "wacc": wacc, "forecast": forecast.scenarios}
+    )
+    assert result.records > 2000 and result.clean, result.problems[:5]
+    assert result.by_source["llm_estimate"] == 0
+    base = next(s for s in forecast.scenarios.scenarios if s.scenario == "base")
+    # Each forecast driver points to the inputs it is built from, and says how.
+    assert "https://" in base.terminal_growth.prov.ref and "policy" in base.terminal_growth.prov.ref
+    assert "min(risk-free" in (base.terminal_growth.prov.note or "")
+    # A generic reference is caught.
+    from dcf_agent.contracts.provenance import Provenance
+
+    vague = Provenance(
+        source="derived",
+        ref="history",
+        as_of=data.request.valuation_date,
+        confidence="medium",
+        note="x",
+    )
+    assert not audit_records([vague]).clean

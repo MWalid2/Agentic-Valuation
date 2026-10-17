@@ -6,6 +6,7 @@ base scenario's WACC x terminal growth grid, and returns one validated record th
 checkpoint can store. Optionally it writes the Excel workbook (the full model).
 """
 
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dcf_agent.contracts.accounting import NormalizedFinancials
 from dcf_agent.contracts.external import DataBundle
-from dcf_agent.contracts.modeling import ForecastScenarios, ValuationResult, WACCResult
+from dcf_agent.contracts.modeling import (
+    CompsResult,
+    ForecastScenarios,
+    ValuationResult,
+    WACCResult,
+)
+from dcf_agent.contracts.workflow import CritiqueReport
 from dcf_agent.engine.assemble import Assembled, assemble
 from dcf_agent.engine.dcf import drivers_from, run_dcf, sensitivity, weighted_value
 
@@ -97,6 +104,10 @@ def write_workbook(
     normalized: NormalizedFinancials | None,
     marginal_tax: float,
     out: Path,
+    *,
+    comps: CompsResult | None = None,
+    critique: CritiqueReport | None = None,
+    critic_changes: Sequence[str] = (),
 ) -> tuple[Path, Any]:
     """The full model as an Excel workbook (formulas, as `cli value --out` writes it).
 
@@ -130,6 +141,10 @@ def write_workbook(
             )
             if valuation.grid
             else None,
+            price=valuation.price,
+            comps=comps,
+            critique=critique,
+            critic_changes=critic_changes,
         ),
         out,
     )

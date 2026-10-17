@@ -21,6 +21,7 @@ import typer
 from langgraph.types import Command
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -43,12 +44,51 @@ STEPS = {
     "data_review": "Data review",
     "normalize": "Reading the filings for one-off items",
     "adjustment_review": "Adjustments review",
+    "forecast": "Building bear, base and bull scenarios",
+    "assumption_review": "Assumptions review",
+    "value": "Valuing the scenarios",
+    "excel": "Writing the workbook",
     "wacc": "Computing the cost of capital",
     "unwired": "Skipping a step not available yet",
     "answer": "Writing the answer",
     "halt": "Budget check",
 }
 Ask = Callable[[str], str]
+
+
+def parse_signoff(answer: str) -> dict[str, Any]:
+    word, _, rest = answer.strip().partition(" ")
+    word = word.lower()
+    if word == "stop":
+        return {"action": "stop"}
+    if word == "back":
+        return {"action": "back", "note": rest.strip() or None}
+    return {"action": "approve"}
+
+
+def football_text(ranges: list[dict[str, Any]], price: float | None, width: int = 40) -> str:
+    """The football field as text bars on one scale, the price marked with '|'."""
+    if not ranges:
+        return ""
+    values = [v for r in ranges for v in (r["low"], r["high"])] + ([price] if price else [])
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1.0
+
+    def at(v: float) -> int:
+        return int((v - lo) / span * (width - 1) + 0.5)
+
+    lines = []
+    for r in ranges:
+        bar = [" "] * width
+        for k in range(at(r["low"]), at(r["high"]) + 1):
+            bar[k] = "="
+        if price:
+            bar[at(price)] = "|"
+        label = escape(r["label"][:34])
+        lines.append(f"{label:34} {''.join(bar)} {r['low']:,.2f}-{r['high']:,.2f}")
+    if price:
+        lines.append(f"{'':34} {' ' * at(price)}^ price {price:,.2f}")
+    return "\n".join(lines)
 
 
 def sessions(conn: sqlite3.Connection) -> list[str]:
@@ -155,7 +195,12 @@ class Chat:
                     if node.startswith("__") or node not in STEPS:
                         continue
                     elapsed = time.monotonic() - started
-                    if node not in ("gate0", "data_review", "adjustment_review"):
+                    if node not in (
+                        "gate0",
+                        "data_review",
+                        "adjustment_review",
+                        "assumption_review",
+                    ):
                         self.console.print(f"  [green]done[/] {STEPS[node]} ({elapsed:.1f}s)")
                     started = time.monotonic()
                 upcoming = self.graph.get_state(config).next
@@ -185,7 +230,8 @@ class Chat:
             answer = self.ask("Out of scope. Type another ticker, or press Enter to stop: ").strip()
             return {"action": "choose", "ticker": answer.upper()} if answer else {"action": "stop"}
         answer = self.ask(
-            "Enter to confirm; or 'stop', 'date YYYY-MM-DD', 'ticker XYZ', 'industry <label>': "
+            "Enter to confirm; or 'stop', 'date YYYY-MM-DD', 'ticker XYZ', 'industry <label>', "
+            "'autopilot' (later gates approve themselves, listed as unreviewed): "
         ).strip()
         word, _, rest = answer.partition(" ")
         word = word.lower()
@@ -196,6 +242,8 @@ class Chat:
         if word == "ticker" and rest:
             return {"action": "choose", "ticker": rest.strip().upper()}
         decision: dict[str, Any] = {"action": "confirm"}
+        if word == "autopilot":
+            decision["autopilot"] = True
         if word == "industry" and rest:
             decision["industry"] = rest.strip()
         if gate["intent"] is None:
@@ -216,7 +264,19 @@ class Chat:
             return self.gate0(gate)
         if gate.get("kind") == "adjustments":
             return self.adjustments(gate)
+        if gate.get("kind") == "assumptions":
+            return self.assumptions(gate)
+        if gate.get("kind") == "signoff":
+            return self.signoff(gate)
         return self.gate1(gate)
+
+    def signoff(self, gate: dict[str, Any]) -> dict[str, Any]:
+        """Gate 3: approve and export, back to the assumptions, or stop."""
+        self.show_signoff(gate)
+        answer = self.ask(
+            "Enter to approve and export; or 'back <note>' (to the assumptions), 'stop': "
+        ).strip()
+        return parse_signoff(answer)
 
     def adjustments(self, gate: dict[str, Any]) -> dict[str, Any]:
         """Gate 1 on proposed EBIT adjustments: approve all, decide each, or stop."""
@@ -263,6 +323,21 @@ class Chat:
                 break
         return {"action": "decide", "approve": approve, "reject": reject, "edit": edit}
 
+    def assumptions(self, gate: dict[str, Any]) -> dict[str, Any]:
+        """Gate 2: approve, edit a cell, ask why, re-think a scenario, or stop."""
+        self.show_assumptions(gate)
+        while True:
+            answer = self.ask(
+                "Enter to approve; or 'edit base margin 2028 25%' (add '! reason' to "
+                "override a hard bound), 'why <question>', 'rethink bear <note>', 'stop': "
+            ).strip()
+            decision = parse_assumption_command(answer, gate)
+            if decision is not None:
+                return decision
+            self.console.print(
+                "Not understood. Fields: growth, margin, sales, tax, terminal, roic, probability."
+            )
+
     def gate1(self, gate: dict[str, Any]) -> dict[str, Any]:
         self.console.print(
             Panel(gate["question"] or "", title="Data review", border_style="yellow")
@@ -271,6 +346,99 @@ class Chat:
         return {"action": "stop" if answer == "stop" else "continue"}
 
     # Display ----------------------------------------------------------------------------
+
+    def show_assumptions(self, gate: dict[str, Any]) -> None:
+        if gate.get("message"):
+            self.console.print(f"[yellow]{escape(gate['message'])}[/]")
+        if gate.get("answer"):
+            self.console.print(Panel(escape(gate["answer"]), title="Why", border_style="cyan"))
+        first = gate["scenarios"][0]
+        years = first["years"]
+        table = Table(
+            "Scenario",
+            "Prob.",
+            *[f"Growth {y}" for y in years],
+            *[f"Margin {y}" for y in years],
+            "Sales/IC",
+            "Tax",
+            "g∞",
+            "ROIC∞",
+            "Value",
+        )
+        for s in gate["scenarios"]:
+            value = s["value_per_share"]
+            table.add_row(
+                s["scenario"],
+                f"{s['probability']:.0%}",
+                *[f"{v:.1%}" for v in s["revenue_growth"]],
+                *[f"{v:.1%}" for v in s["operating_margin"]],
+                f"{s['sales_to_capital'][0]:.2f}",
+                f"{s['tax_rate'][0]:.0%}->{s['tax_rate'][-1]:.0%}",
+                f"{s['terminal_growth']:.2%}",
+                f"{s['terminal_roic']:.1%}",
+                "-" if value is None else f"{value:,.2f}",
+            )
+        self.console.print(Panel(table, title="Gate 2: assumptions", border_style="yellow"))
+        w = gate["wacc"]
+        weighted = gate["weighted"]
+        self.console.print(
+            f"WACC {w['wacc']:.2%} (risk-free {w['risk_free']:.2%}, ERP {w['erp']:.2%}, beta "
+            f"{w['beta']:.2f} {w['beta_method']}, cost of equity {w['cost_of_equity']:.2%}, "
+            f"debt {w['pretax_cost_of_debt']:.2%} pre-tax, {w['weight_equity']:.0%} equity); "
+            f"terminal WACC {w['terminal_wacc']:.2%}."
+            + (f" Weighted value {weighted:,.2f}" if weighted is not None else "")
+            + (f"; market price {gate['price']:,.2f} (context only)." if gate["price"] else ".")
+        )
+        for s in gate["scenarios"]:
+            self.console.print(f"[bold]{s['scenario']}[/]: {escape(s['narrative'])}")
+            for flag in s["flags"]:
+                self.console.print(f"   [yellow]check:[/] {escape(flag)}")
+        for item in gate["review"]:
+            self.console.print(f"[yellow]For review:[/] {escape(item)}")
+
+    def show_signoff(self, gate: dict[str, Any]) -> None:
+        gap = gate["gap"]
+        self.console.print(
+            Panel(
+                f"Value per share [bold]{gate['weighted']:,.2f}[/] (bear {gate['low']:,.2f} to "
+                f"bull {gate['high']:,.2f})"
+                + (
+                    f"; price {gate['price']:,.2f} ({gap:+.0%})"
+                    if gate["price"] and gap is not None
+                    else ""
+                ),
+                title=f"Gate 3: sign-off, {escape(gate['company'])} ({gate['ticker']})",
+                border_style="yellow",
+            )
+        )
+        weights = ", ".join(
+            f"{s['scenario']} {s['probability']:.0%} {s['value_per_share']:,.2f}"
+            for s in gate["scenarios"]
+        )
+        self.console.print(f"Scenarios: {weights}")
+        self.console.print(football_text(gate["ranges"], gate["price"]))
+        for d in gate["drivers"]:
+            self.console.print(
+                f"Driver {escape(d['driver'])} ({escape(d['step'])}): "
+                f"{min(d['low'], d['high']):,.2f} to {max(d['low'], d['high']):,.2f}"
+            )
+        critic = gate["critic"]
+        if critic is not None:
+            self.console.print(
+                f"Critic: score {critic['score']:.1f}, "
+                f"{'passed' if critic['passed'] else '[red]not passed[/]'}, "
+                f"{critic['loops']} loops"
+            )
+            for issue in critic["issues"]:
+                color = "red" if issue["severity"] == "high" else "yellow"
+                self.console.print(
+                    f"   [{color}]{issue['severity']}[/] {escape(issue['description'])} "
+                    f"(fix: {escape(issue['fix'])})"
+                )
+        for change in gate["changes"]:
+            self.console.print(f"   Critic change: {escape(change)}")
+        for item in gate["unreviewed"]:
+            self.console.print(f"[yellow]Unreviewed:[/] {escape(item)}")
 
     def show_adjustments(self, gate: dict[str, Any]) -> None:
         table = Table("#", "Period", "Item", "EBIT", "% of EBIT", "Confidence")
@@ -290,9 +458,9 @@ class Chat:
             Panel(table, title="Gate 1: proposed EBIT adjustments", border_style="yellow")
         )
         for n, item in enumerate(gate["items"], 1):
-            self.console.print(f"[bold]{n}.[/] {item['rationale']}")
+            self.console.print(f"[bold]{n}.[/] {escape(item['rationale'])}")
             if item["passage"]:
-                self.console.print(f"   [dim]Filing: {item['passage'][:300]}[/]")
+                self.console.print(f"   [dim]Filing: {escape(item['passage'][:300])}[/]")
         if gate["auto_approved"]:
             self.console.print(
                 f"{len(gate['auto_approved'])} small adjustments approved by policy: "
@@ -300,10 +468,11 @@ class Chat:
             )
         for flag in gate["flags"]:
             self.console.print(
-                f"[yellow]Kept in EBIT, check:[/] {flag['item']}: {flag['rationale']}"
+                f"[yellow]Kept in EBIT, check:[/] {escape(flag['item'])}: "
+                f"{escape(flag['rationale'])}"
             )
         for reading in gate["readings"]:
-            self.console.print(f"[yellow]Filing reading to check:[/] {reading}")
+            self.console.print(f"[yellow]Filing reading to check:[/] {escape(reading)}")
 
     def show_gate0(self, gate: dict[str, Any]) -> None:
         table = Table(show_header=False, box=None)
@@ -344,7 +513,7 @@ class Chat:
             if reply.sources:
                 self.console.print(f"[dim]{len(reply.sources)} sources: /sources to list them[/]")
         elif values.get("answer"):
-            self.console.print(values["answer"])
+            self.console.print(escape(values["answer"]))
         if status in ("stopped", "failed", "budget_exhausted"):
             self.console.print(f"[yellow]Session {status}.[/] Name a company to start again.")
 
@@ -456,6 +625,71 @@ class Chat:
             return
         self.session = session
         self.show_session()
+
+
+FIELDS = {
+    "growth": "revenue_growth",
+    "revenue": "revenue_growth",
+    "margin": "operating_margin",
+    "sales": "sales_to_capital",
+    "s2c": "sales_to_capital",
+    "tax": "tax_rate",
+    "terminal": "terminal_growth",
+    "g": "terminal_growth",
+    "roic": "terminal_roic",
+    "probability": "probability",
+    "prob": "probability",
+}
+
+
+def parse_assumption_command(text: str, gate: dict[str, Any]) -> dict[str, Any] | None:
+    """'' -> approve; 'edit base margin 2028 25% ! reason'; 'why ...'; 'rethink bear ...'."""
+    if not text:
+        return {"action": "approve"}
+    word, _, rest = text.partition(" ")
+    word = word.lower()
+    if word == "stop":
+        return {"action": "stop"}
+    if word == "why":
+        return {"action": "why", "question": rest.strip() or "why these assumptions?"}
+    if word == "rethink":
+        name, _, note = rest.strip().partition(" ")
+        if name.lower() not in ("bear", "base", "bull"):
+            return None
+        return {"action": "rethink", "scenario": name.lower(), "note": note.strip() or None}
+    if word != "edit":
+        return None
+    command, _, reason = rest.partition("!")
+    parts = command.split()
+    if len(parts) < 3 or parts[0].lower() not in ("bear", "base", "bull"):
+        return None
+    field = FIELDS.get(parts[1].lower())
+    if field is None:
+        return None
+    year: int | None = None
+    if len(parts) == 4:
+        first = gate["scenarios"][0]["years"][0]
+        token = parts[2].lower().removeprefix("y")
+        if not token.isdigit():
+            return None
+        number = int(token)
+        year = number - first + 1 if number >= 1900 else number
+        if year < 1:
+            return None
+    raw = parts[-1].replace(",", "")
+    try:
+        value = float(raw.rstrip("%"))
+    except ValueError:
+        return None
+    if raw.endswith("%") or (field != "sales_to_capital" and value > 1):
+        value /= 100
+    edit: dict[str, Any] = {"scenario": parts[0].lower(), "field": field, "value": value}
+    if year is not None:
+        edit["year"] = year
+    decision: dict[str, Any] = {"action": "edit", "edits": [edit]}
+    if reason.strip():
+        decision.update({"override": True, "reason": reason.strip()})
+    return decision
 
 
 app = typer.Typer(add_completion=False, help="Chat with the valuation agent.")

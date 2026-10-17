@@ -80,9 +80,20 @@ PLANS: dict[Intent, tuple[str, ...]] = {
     "I3": ("data", "wacc", "answer"),
     "I4": ("data", "normalize", "wacc", "forecast", "answer"),
     "I5": ("data", "normalize", "wacc", "forecast", "value", "answer"),
-    "I6": ("data", "normalize", "wacc", "forecast", "value", "answer"),
+    "I6": ("data", "normalize", "wacc", "forecast", "value", "comps", "critic", "answer"),
     "I7": ("data", "normalize", "wacc", "forecast", "value", "answer"),
-    "I9": ("data", "normalize", "wacc", "forecast", "value", "excel", "answer"),
+    "I9": (
+        "data",
+        "normalize",
+        "wacc",
+        "forecast",
+        "value",
+        "comps",
+        "critic",
+        "excel",
+        "report",
+        "answer",
+    ),
     "I10": ("data", "answer"),
 }
 QUESTION_WORDS = re.compile(
