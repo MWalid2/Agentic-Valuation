@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from dcf_agent.config import load_config
+from dcf_agent.engine.audit import audit_state
 from dcf_agent.graph.services import LiveServices
 from dcf_agent.graph.workflow import build_graph, open_checkpointer, pending_gate, resume, start
 
@@ -25,7 +26,7 @@ COMPANIES = ("AAPL", "BA", "CAT", "DE", "KO", "MCD", "MSFT", "NKE", "NVDA", "SNO
 
 def run(graph: Any, session: str, message: str, output: str) -> dict[str, Any]:
     state = start(graph, session, message)
-    for _ in range(6):
+    for _ in range(8):
         gate = pending_gate(graph, session)
         if gate is None:
             break
@@ -33,6 +34,10 @@ def run(graph: Any, session: str, message: str, output: str) -> dict[str, Any]:
             state = resume(graph, session, {"action": "confirm", "output": output})
         elif gate.get("kind") == "adjustments":
             state = resume(graph, session, {"action": "approve_all"})
+        elif gate.get("kind") == "assumptions":
+            state = resume(graph, session, {"action": "approve"})
+        elif gate.get("kind") == "signoff":
+            state = resume(graph, session, {"action": "approve"})
         else:
             state = resume(graph, session, {"action": "continue"})
     return state
@@ -76,6 +81,9 @@ def main() -> None:
                     "cited": "Value per share" in (state.get("answer") or "")
                     and "[1]" in (state.get("answer") or ""),
                     "seconds": round(time.monotonic() - began, 1),
+                    "audit": (lambda a: {"records": a.records, "problems": a.problems[:5]})(
+                        audit_state(state)
+                    ),
                     "warnings": [
                         e.rationale for e in state.get("audit_log", ()) if e.action == "warning"
                     ][-6:],
@@ -109,6 +117,7 @@ def main() -> None:
         "companies": len([r for r in rows if r["output"] == "quick"]),
         "valued": sum(bool(r["weighted"] is not None) for r in rows if r["output"] == "quick"),
         "cited": sum(r["cited"] for r in rows if r["output"] == "quick"),
+        "audit_clean": sum(not r["audit"]["problems"] for r in rows if r["output"] == "quick"),
         "parity": parity,
     }
     args.out.write_text(json.dumps({"summary": summary, "rows": rows}, indent=2, default=str))

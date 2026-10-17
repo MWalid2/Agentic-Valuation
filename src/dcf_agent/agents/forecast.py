@@ -69,7 +69,23 @@ Reinvestment = Literal["below_history", "history", "industry"]
 Moat = Literal["none", "narrow", "wide"]
 GROWTHS: tuple[Growth, ...] = ("fades_fast", "fades_normally", "durable")
 MARGINS: tuple[Margin, ...] = ("compresses", "holds", "expands")
-MOAT_SPREAD: dict[Moat, float] = {"none": 0.0, "narrow": 0.02, "wide": 0.05}
+MOAT_SPREAD: dict[Moat, float] = {"none": 0.0, "narrow": 0.02, "wide": 0.05}  # minimums
+# Share of the company's historical excess return (median ROIC over WACC) kept in the long
+# run, and its ceiling, by moat level.
+MOAT_KEPT: dict[Moat, tuple[float, float]] = {
+    "none": (0.0, 0.0),
+    "narrow": (0.5, 0.06),
+    "wide": (0.75, 0.15),
+}
+
+
+def terminal_spread(moat: Moat, historical_roic: float | None, terminal_wacc: float) -> float:
+    """Long-run return above WACC: a share of the company's own excess, within bounds."""
+    kept, ceiling = MOAT_KEPT[moat]
+    excess = max(0.0, (historical_roic or terminal_wacc) - terminal_wacc)
+    return min(max(MOAT_SPREAD[moat], kept * excess), ceiling) if moat != "none" else 0.0
+
+
 HOLD: dict[Growth, tuple[int, Literal["linear", "convex"]]] = {
     "fades_fast": (0, "convex"),
     "fades_normally": (2, "linear"),
@@ -429,6 +445,52 @@ def sourced(value: float, end: date | None, as_of: date, note: str, refs: str) -
     )
 
 
+POLICY = "policy: docs/25-phase-4-plan.md, decisions and step 3"
+
+
+def driver_sources(
+    normalized: NormalizedFinancials,
+    industry: Benchmarks | None,
+    guidance: Sequence[FilingItem],
+    wacc: WACCResult,
+    a: Anchors,
+) -> dict[str, str]:
+    """For each driver, the references of the inputs it is built from (and the policy)."""
+    years = sorted(normalized.annual, key=lambda p: p.period_end)
+    latest = normalized.ttm or years[-1]
+
+    def join(*refs: str | None) -> str:
+        return " | ".join(dict.fromkeys(r for r in refs if r))[:1000]
+
+    guided = guidance_rate(guidance, ("revenue_growth", "organic_growth"))
+    growth = (
+        join(guided.amount.prov.ref if guided and guided.amount else None, POLICY)
+        if a.notes["growth"].startswith("guidance")
+        else join(years[-1].revenue.prov.ref, years[0].revenue.prov.ref, POLICY)
+    )
+    guided_tax = guidance_rate(guidance, ("tax_rate",))
+    tax = (
+        guided_tax.amount.prov.ref
+        if a.notes["tax"].startswith("guidance") and guided_tax and guided_tax.amount
+        else years[-1].effective_tax_rate.prov.ref
+    )
+    turnover = (
+        industry.sales_to_capital.prov.ref
+        if industry and industry.sales_to_capital and "industry" in a.notes["sales_to_capital"]
+        else (years[-1].sales_to_capital.prov.ref if years[-1].sales_to_capital else None)
+    )
+    roic = years[-1].roic.prov.ref if years[-1].roic else None
+    return {
+        "growth": growth,
+        "margin": join(latest.clean_ebit.prov.ref, latest.revenue.prov.ref, POLICY),
+        "sales_to_capital": join(turnover, POLICY),
+        "tax": join(tax, latest.marginal_tax_rate.prov.ref),
+        "marginal_tax": join(latest.marginal_tax_rate.prov.ref),
+        "terminal_growth": join(wacc.rf.prov.ref, POLICY),
+        "terminal_roic": join(wacc.terminal_wacc.prov.ref, roic, POLICY),
+    }
+
+
 def build(
     scenario: Scenario,
     growth: Growth,
@@ -439,7 +501,7 @@ def build(
     industry: Benchmarks | None,
     ends: tuple[date, ...],
     as_of: date,
-    refs: str,
+    refs: dict[str, str],
     beyond: int = 0,
 ) -> ForecastAssumptions:
     """One world's year-by-year drivers, every value sourced and explained.
@@ -477,7 +539,8 @@ def build(
     moats: tuple[Moat, ...] = ("none", "narrow", "wide")
     step = {"bear": -1, "base": 0, "bull": 1}[scenario]
     moat = moats[int(clamp(moats.index(choice.moat) + step, 0, 2))]
-    roic = a.terminal_wacc + MOAT_SPREAD[moat]
+    spread = terminal_spread(moat, stats.roic.median, a.terminal_wacc)
+    roic = a.terminal_wacc + spread
     note = f"{scenario}: growth {growth}, margin {margin}" + (
         f", one step {'below' if beyond < 0 else 'above'} the grid" if beyond else ""
     )
@@ -491,35 +554,69 @@ def build(
         "tax": a.notes["tax"],
         "terminal_growth": a.notes["terminal_growth"]
         + (f", {shift:+.1%} in this scenario" if shift else ""),
-        "terminal_roic": f"moat {moat} (chosen {choice.moat}): terminal WACC + "
-        f"{MOAT_SPREAD[moat]:.0%}. "
+        "terminal_roic": f"moat {moat}"
+        + (
+            ""
+            if moat == choice.moat
+            else f" (one level {'above' if step > 0 else 'below'}"
+            f" the base world's {choice.moat}, by scenario)"
+        )
+        + f": terminal WACC + {spread:.1%} "
+        f"(keeps {MOAT_KEPT[moat][0]:.0%} of the median ROIC's "
+        f"{pct(stats.roic.median)} excess over WACC, within {MOAT_SPREAD[moat]:.0%}-"
+        f"{MOAT_KEPT[moat][1]:.0%}). "
         f"Evidence: {choice.moat_evidence}",
     }
-    if moat == "wide":
-        rationale["moat"] = choice.moat_evidence
+    if spread > 0.05:
+        rationale["moat"] = f"{moat}: {choice.moat_evidence}"
     return ForecastAssumptions(
         as_of=as_of,
         scenario=scenario,
         probability=PROBABILITIES[scenario],
         year_ends=ends,
         revenue_growth=tuple(
-            sourced(v, e, as_of, f"{note}: revenue growth", refs)
+            sourced(v, e, as_of, f"{note}: revenue growth; {rationale['growth']}", refs["growth"])
             for v, e in zip(growth_path, ends, strict=True)
         ),
         operating_margin=tuple(
-            sourced(v, e, as_of, f"{note}: operating margin", refs)
+            sourced(v, e, as_of, f"{note}: operating margin; {rationale['margin']}", refs["margin"])
             for v, e in zip(margin_path, ends, strict=True)
         ),
         sales_to_capital=tuple(
-            sourced(turnover, e, as_of, f"{note}: sales to capital", refs) for e in ends
+            sourced(
+                turnover,
+                e,
+                as_of,
+                f"{note}: sales to capital; {rationale['reinvestment']}",
+                refs["sales_to_capital"],
+            )
+            for e in ends
         ),
         tax_rate=tuple(
-            sourced(v, e, as_of, f"{note}: tax rate", refs)
+            sourced(v, e, as_of, f"{note}: tax rate; {rationale['tax']}", refs["tax"])
             for v, e in zip(tax_path, ends, strict=True)
         ),
-        terminal_growth=sourced(terminal, None, as_of, f"{note}: terminal growth", refs),
-        terminal_roic=sourced(roic, None, as_of, f"{note}: terminal ROIC", refs),
-        marginal_tax_rate=sourced(a.marginal_tax, None, as_of, "marginal tax rate", refs),
+        terminal_growth=sourced(
+            terminal,
+            None,
+            as_of,
+            f"{note}: terminal growth; {rationale['terminal_growth']}",
+            refs["terminal_growth"],
+        ),
+        terminal_roic=sourced(
+            roic,
+            None,
+            as_of,
+            f"{note}: terminal ROIC; {rationale['terminal_roic']}",
+            refs["terminal_roic"],
+        ),
+        marginal_tax_rate=sourced(
+            a.marginal_tax,
+            None,
+            as_of,
+            "marginal tax rate from the filing's rate reconciliation (or the 25% policy)",
+            refs["marginal_tax"],
+        ),
         narrative=f"{scenario.capitalize()} case: growth {growth.replace('_', ' ')}, "
         f"margin {margin}.",
         rationale=rationale,
@@ -535,12 +632,13 @@ def story(item: ForecastAssumptions, written: str | None) -> str:
         return written
     growth = item.revenue_growth
     margin = item.operating_margin
+    returns = re.split(r"\.\s", item.rationale["terminal_roic"])[0].rstrip(".")  # 1st sentence
     return (
         f"{item.scenario.capitalize()} case: revenue growth starts at {growth[0].value:.1%} and "
         f"fades to {item.terminal_growth.value:.1%} ({item.rationale['growth'].split(':')[0]}); "
         f"the operating margin moves from {margin[0].value:.1%} to {margin[-1].value:.1%}; "
         f"each dollar of new revenue needs {1 / item.sales_to_capital[0].value:.2f} dollars of "
-        f"capital; long-run returns: {item.rationale['terminal_roic'].split('.')[0]}."
+        f"capital; long-run returns: {returns}."
     )
 
 
@@ -574,7 +672,9 @@ class ForecastAgent:
         normalized: NormalizedFinancials,
         wacc: WACCResult,
         assembled: Assembled,
+        note: str | None = None,
     ) -> Forecast:
+        """note: the user's request at Gate 2 to reconsider a scenario, shown to the model."""
         as_of = bundle.request.valuation_date
         stats = driver_stats(normalized)
         industry = industry_benchmarks(bundle)
@@ -584,6 +684,8 @@ class ForecastAgent:
         notes = list(stats.notes)
         calls = 0
         prompt = evidence_prompt(bundle.request.company_name, stats, industry, wacc, guidance)
+        if note:
+            prompt += f"\nThe user asks to reconsider: {note[:300]}"
         read = self.choose(prompt)
         calls += self.llm is not None
         chosen_by: Literal["model", "default"] = "model" if read is not None else "default"
@@ -592,16 +694,7 @@ class ForecastAgent:
         notes += [f"Gate 2: {r}" for r in rejected]
         last = max(normalized.annual, key=lambda p: p.period_end).period_end
         ends = forecast_years(last, as_of, HORIZON)
-        refs = "; ".join(
-            filter(
-                None,
-                (
-                    f"normalized history to {last}",
-                    f"Damodaran {industry.industry}" if industry else "",
-                    "management guidance" if guidance else "",
-                ),
-            )
-        )
+        refs = driver_sources(normalized, industry, guidance, wacc, a)
         worlds = []
         for growth, margin in product(GROWTHS, MARGINS):
             world = World(growth, margin)

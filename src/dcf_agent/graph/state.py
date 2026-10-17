@@ -14,8 +14,8 @@ from dcf_agent.agents.wacc import WaccDecision
 from dcf_agent.contracts.accounting import Adjustment, NormalizedFinancials
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import ValuationRequest
-from dcf_agent.contracts.modeling import ForecastScenarios, WACCResult
-from dcf_agent.contracts.workflow import ApprovalRecord, Budget, Event
+from dcf_agent.contracts.modeling import CompsResult, ForecastScenarios, WACCResult
+from dcf_agent.contracts.workflow import ApprovalRecord, Budget, CritiqueReport, Event
 from dcf_agent.engine.valuation import Valuation
 
 Status = Literal["running", "stopped", "done", "budget_exhausted", "failed"]
@@ -49,6 +49,21 @@ class GraphState(TypedDict, total=False):
     forecast: ForecastScenarios
     forecast_notes: tuple[str, ...]
     valuation: Valuation
+    # Comps (and the target's own figures, read like the peers'), the Critic's report,
+    # its loops so far and the changes it made in code.
+    comps: CompsResult
+    comps_target: dict[str, float]
+    critique: CritiqueReport
+    critic_revisions: int
+    critic_changes: tuple[str, ...]
+    # Autopilot (set at Gate 0), what it passed unreviewed, and the exported report.
+    autopilot: bool
+    unreviewed: Annotated[tuple[str, ...], operator.add]
+    report_folder: str
+    # Gate 2: approved, and what the gate shows next (an answer to "why", an edit's result).
+    assumptions_approved: bool
+    gate2_answer: str | None
+    gate2_message: str | None
     answer: str
     reply: Answer
     status: Status
@@ -72,6 +87,8 @@ class GateDecision(BaseModel):
     output: Output | None = None
     question: str | None = Field(default=None, min_length=1)
     industry: str | None = Field(default=None, min_length=1)
+    # Later gates approve themselves; every item they pass is listed as unreviewed.
+    autopilot: bool = False
 
     @model_validator(mode="after")
     def validate_action(self) -> "GateDecision":
@@ -82,6 +99,14 @@ class GateDecision(BaseModel):
         if self.output == "question" and self.question is not None and not self.question.strip():
             raise ValueError("Blank question")
         return self
+
+
+class SignoffDecision(BaseModel):
+    """The user's answer at Gate 3: export, back to the assumptions (Gate 2), or stop."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    action: Literal["approve", "back", "stop"]
+    note: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 class AdjustmentDecision(BaseModel):

@@ -29,6 +29,8 @@ class Policy:
     marginal_tax_rate: float = US_MARGINAL_TAX
     lease_rate: float = 0.05  # Pre-tax cost of debt used for the lease interest component.
     leases_as_debt: bool = True
+    # Where the marginal rate comes from (the filing's rate reconciliation, or the policy).
+    marginal_tax_note: str = "policy marginal tax rate"
 
 
 def amount(period: FinancialPeriod, concept: FinancialConcept) -> float | None:
@@ -182,7 +184,7 @@ def normalize_period(
         nopat=s(nopat, f"clean EBIT x (1 - {tax:.2%}); {tax_note}"),
         invested_capital=s(capital, capital_note),
         effective_tax_rate=s(effective if effective is not None else tax, tax_note),
-        marginal_tax_rate=s(policy.marginal_tax_rate, "policy marginal tax rate"),
+        marginal_tax_rate=s(policy.marginal_tax_rate, policy.marginal_tax_note),
         ebitda=s(ebit + da, "clean EBIT + D&A") if da is not None else None,
         operating_nwc=s(nwc, "receivables + inventory - payables") if nwc is not None else None,
         net_ppe=period.values.get("net_ppe"),

@@ -366,13 +366,20 @@ def ttm_value(
 
 
 def sourced(
-    value: float, fact: Fact | None, period: FinancialPeriod, as_of: date, note: str
+    value: float,
+    fact: Fact | None,
+    period: FinancialPeriod,
+    as_of: date,
+    note: str,
+    accession: str | None = None,
 ) -> Sourced[float]:
+    """A tagged fact's value, or a value derived from one filing (named by its accession)."""
+    filing = fact.accession if fact is not None else accession
     return Sourced[float](
         value=value,
         prov=Provenance(
             source="sec_xbrl" if fact is not None else "derived",
-            ref=f"accession {fact.accession}" if fact is not None else "normalizer",
+            ref=f"accession {filing}" if filing else "normalizer",
             as_of=as_of,
             period_end=period.period_end,
             filed=fact.filed if fact is not None else None,
@@ -491,7 +498,12 @@ class NormalizationAgent:
                     value = package.value(candidate.concept, period.period_start, period.period_end)
                 if value:
                     candidate.amounts[period.period_end] = sourced(
-                        value, fact, period, as_of, f"{candidate.label} ({candidate.concept})"
+                        value,
+                        fact,
+                        period,
+                        as_of,
+                        f"{candidate.label} ({candidate.concept})",
+                        package.filing.accession,
                     )
                     candidate.filings[period.period_end] = (
                         (fact.accession, fact.filed)
@@ -509,6 +521,7 @@ class NormalizationAgent:
                         as_of,
                         f"{candidate.label}: fiscal year + year to date - prior year to date "
                         f"(accession {found[1].accession})",
+                        found[1].accession,
                     )
             if not candidate.on_face:
                 self.use_stated(candidate, periods, accessions, as_of)

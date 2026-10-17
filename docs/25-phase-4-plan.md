@@ -349,3 +349,154 @@ Results:
 Boeing is negative once Gate 1 removes its $9.6B disposal gain. The values remain below the price for 9 of 10 companies (Step 3's finding, for Step 8).
 
 Tests: `tests/test_valuation_graph.py` (6, on a saved reference bundle, skipped without it). 668 tests pass.
+
+**After Step 4: terminal ROIC from the company's record.** The fixed spreads
+(terminal ROIC = WACC + 0, 2 or 5 points by moat) ignored the company's own
+returns: Coca-Cola's median ROIC is 16% against a 7.7% WACC.
+
+Now:
+- none: WACC;
+- narrow: keeps half of the historical excess return, between +2 and +6 points;
+- wide: keeps three quarters, between +5 and +15 points (the cap matters for Apple's 515%);
+- above 5 points the rationale records the moat evidence.
+
+Values rose (Coca-Cola base 45.5 to 48.1, Caterpillar 403 to 519, McDonald's 170 to
+193, Microsoft 401 to 426); the checks are unchanged (hard 10/10, soft 9/10,
+spread 8/10).
+
+The remaining gap to market prices is mostly the discount rate:
+- the 10-year Treasury in the data is 5.22% (FRED, 2026-10-11);
+- bottom-up betas are 1.28-1.34 for Microsoft and Apple.
+
+A hand decomposition of Coca-Cola's base value (stub year, FCFF, terminal value, bridge, diluted shares) shows no arithmetic error. Kept for the anchoring review in step 8.
+
+### Step 5: Gate 2 (done, 2026-10-17)
+
+`agents/assumptions.py` and the `assumption_review` node: after the forecast,
+before the DCF, when the plan values.
+
+| Part | Implementation |
+|---|---|
+| Shown | Per scenario: probability, growth and margin in years 1, 5 and 10, sales-to-capital, tax path, terminal growth and ROIC, preview value per share, story, rationale, flags (hard, soft, engine). The WACC build-up (risk-free, ERP, beta and method, costs of equity and debt, weights, terminal WACC). The weighted value, the price (context only), and the items for review: model picks the statistics did not support, the anchoring gap |
+| Approve | Gate-2 `ApprovalRecord`, then the valuation runs |
+| Edit | Cells by scenario, field and year (or all years). Each value becomes `user_override` evidence with its old value. Checked in order: contract rules (dates, the last tax rate is the marginal rate, probabilities sum to one); hard bounds, which are refused unless the user overrides with a reason (`bounds_override`, `override_reason` in the record); the engine's guardrails, never overridable. The gate is shown again with the result |
+| Why | The I4 answer for the question, shown in the next gate |
+| Re-think | The Forecast Agent reruns with the user's note in its prompt; only the named scenario is replaced, its probability kept |
+| Stop | Rejected record; session stopped |
+| Chat | A table of the three scenarios, the WACC line, stories, flags. Enter approves; `edit base margin 2028 25%` (calendar or forecast year, percent or decimal; `! reason` overrides); `why ...`; `rethink bear ...`; `stop` |
+
+### Step 6: incremental reruns (done, 2026-10-17)
+
+- **`DEPENDS`** (in `graph/workflow.py`): data, normalize, wacc, forecast, value, excel, each with what it depends on.
+- **`stale_after(step)`**: every step that depends on `step`, directly or not.
+- **A change follow-up (I11):** "change the base margin in 2028 to 25%", "set bull terminal growth to 2.5%", "update the bear probability to 30%".
+  - It is parsed in plain language by `parse_change`: scenario, field, calendar or forecast year, value, and an optional `! reason` for an override.
+  - It is applied with the Gate 2 checks and recorded as a gate-2 edit.
+  - It reruns only the stale steps: value and answer; not data, normalization, WACC or forecast.
+  - The answer says what changed.
+
+Tests (`tests/test_gate2.py`, 9, on the saved reference bundle):
+- the gate's content and approval;
+- an edit applied, recorded and valued;
+- a hard-bound edit refused, then accepted with an override and its reason;
+- an edit the engine cannot value, refused even with an override;
+- why, re-think (the note reaches the agent) and stop;
+- a restart at Gate 2;
+- the chat commands;
+- a change follow-up that reruns only the valuation (no new data collection, no new forecast) and changes the value;
+- a hard-bound change refused;
+- plain-language parsing.
+
+677 tests pass.
+
+### Step 7: interface (done, 2026-10-17: terminal chat; Chainlit not built)
+
+Per the default decision, Gate 2 lives in the terminal chat (Step 5). Chainlit, a web UI with an editable grid, was not built; it can follow if you want it.
+
+**Live walkthrough** (Coca-Cola, offline cache, qwen3:4b, `outputs/walkthrough-ko-gate2.log`):
+
+| Moment | What happened |
+|---|---|
+| Gate 0, data | Gate 0 confirmed, quick value; data collected in 17 s |
+| Gate 1 | Three adjustments approved |
+| Forecast | Built in 67 s |
+| Gate 2 shown | The scenario table; the WACC build-up (risk-free 5.22%, ERP 4.23%, beta 0.63, WACC 7.73%); the three stories; the filing readings to check |
+| `why base margin` | Its rationale and evidence, shown in the gate |
+| `edit base margin 2028 30%` | Applied and recorded as `base.operating_margin[year 3]=0.3`; only 2028 changed |
+| Approval | Weighted value $50.57 (range 38.55-61.95) |
+| `change the bull terminal growth to 2.5%` | Revalued in 0.2 s (only the valuation reran): $49.00 |
+| `what are the bull and bear cases?` | Answered from the session |
+
+Found: the chat's display library read "[year 3]" in a message as a style tag and hid it (the record was right). All free text shown at the gates and in plain answers is now escaped, with a test. 678 tests pass.
+
+### Step 8: evaluation (done, 2026-10-17; anchoring review pending)
+
+**Acceptance.**
+
+| Criterion | Target | Result | Status |
+|---|---|---|---|
+| Hard bounds | 100% of generated sets | 10/10 (golden set, with the model) | Met |
+| Soft bounds | at least 90% clean without edits | 9/10 (Snowflake's bull: terminal value 767% of EV, a loss maker's negative explicit years) | Met |
+| Scenario spread | bull and bear at least 15% from base; probabilities sum to 1 | 8/10; probabilities always 1. Misses: Apple (its bull cannot step past the wide moat), Snowflake (values negative) | Partly met |
+| Anti-anchoring | correlation not suspiciously close to 1; 5 cases reviewed by you | Log correlation of base value with price 0.74 (it mostly reflects company size); median weighted value / price 0.54; 9 of 10 below the price, none within 20% | Not anchored; your review pending (`evals/forecast/anchoring-review.md`) |
+| Incremental reruns | an edit reruns only its dependents | A change reruns only value and answer (test; live walkthrough: 0.2 s) | Met |
+| End to end | quick value for every golden company not blocked, with Gate 2, cited | 10/10 valued and cited through the graph with Gates 0, 1 and 2; full model workbook parity 8/8 | Met |
+| Phase 1 to 3 checks | unchanged | Extraction 111/111; 678 tests pass | Met |
+| Latency | quick value at most 30 minutes | 25 to 74 s per company from the cache; at most 9 minutes on first readings | Met |
+
+**Model calls per quick value:**
+- Gate 1 normalizer: about 1 per material item, cached after the first run.
+- Forecast: 2 (levels and stories).
+- Router: 0 to 1.
+
+**What the anchoring numbers say.** The valuations do not follow the market,
+but the policy reads every large company as expensive. The main causes:
+- **Discount rates:** a 5.22% risk-free rate in the data (FRED DGS10, 2026-10-11) with a 4.23% ERP; bottom-up betas of 1.28-1.34 for Microsoft and Apple.
+- **Long-run returns:** returns fade toward WACC (terminal ROIC keeps 50-75% of the historical excess).
+- **Fades:** conservative fades, where the statistics support the model's pessimism.
+
+These are policy choices to discuss, not errors: a hand decomposition of
+Coca-Cola's value checks out. Your review of the five cases decides whether to
+change a default. Candidates:
+- the ERP source;
+- the terminal ROIC share;
+- the horizon (10 years);
+- a cap on beta.
+
+**Known limits.**
+- Loss makers: the mature margin is the better of the industry average and guidance, which can be low (Snowflake: 3.7% industry, 14.5% non-GAAP guidance); set it at Gate 2.
+- The model (qwen3:4b) is pessimistic and echoes labels in stories: the support rule overrules unsupported picks (flagged for review), and the stories fall back to the rationale.
+- Guidance is read only from the latest two earnings releases (not EPS ranges, net income forecasts or the 10-K's outlook text).
+- Chainlit is not built: Gate 2 runs in the terminal chat.
+- The extraction test split (Phase 3a) and the narrative gold-set review are still open.
+
+### Provenance audit (2026-10-17)
+
+Decision (you, 2026-10-17): values below the market price are acceptable,
+provided every calculation and value used is justified and sourced. That
+condition is now checked in code.
+
+**`engine/audit.py`** walks every `Sourced` value a valuation uses: the bundle, the normalized history, the approved adjustments, the WACC, the forecast. It checks:
+- values from SEC, FRED, Damodaran or prices point to a URL, an accession or a series;
+- derived values name what they come from (a URL, an accession, the engine's code or the policy) and say how in a note;
+- user and policy values name their gate or policy;
+- nothing rests on a model estimate.
+
+**Gaps found and fixed:**
+- The forecast drivers carried one generic reference ("normalized history; Damodaran ...; management guidance") and a note naming only the scenario. Each driver now cites the inputs it is built from, and its note gives the rule with the numbers:
+  - starting growth: the guidance exhibit (URL and accession), or the revenue records of the first and last years;
+  - margin: the clean EBIT and revenue records;
+  - sales-to-capital: the Damodaran table or the company's record;
+  - tax: the guidance or the effective-rate record, and the marginal-rate record;
+  - terminal growth: the FRED risk-free series;
+  - terminal ROIC: the terminal WACC and the ROIC record;
+  - the policy constants (the 3% cap, moat shares, fade rules) are cited as the policy in this document.
+- The normalized history called the marginal rate "policy" even when it came from the filing's rate reconciliation; it now says which.
+- The normalizer's TTM amounts and extension-line values referred to "normalizer"; they now cite their filing's accession.
+
+**Result:** the golden set, 10 quick values through the graph (`scripts/check_value.py`):
+- every value of every valuation passes, about 2,550 to 2,630 values per company;
+- none is a model estimate;
+- `tests/test_valuation_graph.py` runs the audit on a full valuation and checks that a vague reference is caught.
+
+679 tests pass.

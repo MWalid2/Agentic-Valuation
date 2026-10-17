@@ -809,8 +809,28 @@ def value_answer(request: ValuationRequest, state: Any) -> Answer:
     review = [n for n in state.get("forecast_notes", ()) if n.startswith(("Gate 2", "base value"))]
     if review:
         lines += ["", "For review:"] + [f"- {n}" for n in review]
+    changed = state.get("gate2_message") or ""
+    if changed.startswith("Changed"):
+        lines = [f"{changed} (only the valuation was rerun).", "", *lines]
+    critique = state.get("critique")
+    if critique is not None:
+        high = sum(i.severity == "high" for i in critique.issues)
+        lines += [
+            "",
+            f"Critic: score {critique.score:.1f} of 5, "
+            f"{'passed' if critique.passed else 'not passed'}; {len(critique.issues)} issues "
+            f"({high} high), {critique.revision_count} revision loops.",
+        ]
+    comps = state.get("comps")
+    if comps is not None and comps.implied_value_range is not None:
+        low, high_value = comps.implied_value_range
+        lines.append(
+            f"Comps cross-check: {low:,.2f} to {high_value:,.2f} from {len(comps.peers)} peers."
+        )
     if valuation.workbook:
         lines += ["", f"Workbook: {valuation.workbook}"]
+    if state.get("report_folder"):
+        lines.append(f"Report (memo, chart, workbook, audit log): {state['report_folder']}")
     return cite.answer(
         request.intent,
         f"{request.company_name} ({request.ticker}): value as of {as_of}",
