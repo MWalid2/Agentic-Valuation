@@ -1,0 +1,146 @@
+# Normalization Agent: proposals for review
+
+For each candidate, tick one verdict. A false positive is an adjustment that should not be made (a recurring cost stripped, a wrong amount or direction); a missed adjustment is a one-off the agent left in EBIT. Acceptance: at most one false positive per company.
+
+## COCA COLA CO (KO)
+
+Latest fiscal-year EBIT 13,762M (2025-12-31). Notes: operating income from us-gaap:OperatingIncomeLoss; Goodwill Impairment Loss: below 0.5% of EBIT in every year; Litigation Settlement Expense: below 0.5% of EBIT in every year; Restructuring Charges: below 0.5% of EBIT in every year; Impairment Of Intangible Assets Excluding Goodwill: within the adjusted line Other operating charges in 2 period(s); not adjusted twice
+
+### KO-1. Other operating charges (income statement line, other)
+
+- Amounts (USD millions; charge when positive): 2022-12 1,215, 2023-12 1,951, 2024-12 4,163, 2025-12 1,261
+- Present in 4 of the last five years: recurring by rule
+- Model: recurring=False, passage P3: The item 'Other operating charges (charge), other' appears in multiple years (FY2022 to FY2025) but the amounts are highly variable and the context indicates that the charges are related to specific, non-recurring events such as impairment charges, refranchising, and pension-related charges. The passage P3 states that the Company recorded asset impairment charges of $960 million and $760 million, 
+- **Proposal: ADJUST**, confidence medium. Present in 4 of the last 5 years (recurring line), but the filing names one-off components: 2023-12: $1,702M the remeasurement of our contingent consideration liability to fair value in conjunction with the fairlife acquisition; $35M the discontinuation of certain manufacturing operations that impacted our Asia Pacific operating segment; $8M tax litigation expense; 2024-12: $3,109M the remeasurement of our contingent consideration liability to fair value in conjunction with the fairlife acquisition; $760M the impairment of our BodyArmor trademark; $126M the impairment of a trademark in Latin America; $13M an indemnification agreement entered into as a part of the refranchising of certain of our bottling operations; 2025-12: $960M the impairment of our BodyArmor trademark; $47M the remeasurement of our contingent consideration liability to fair value in conjunction with our acquisition of fairlif; $44M the impairment of a trademark in Latin America; $41M the impairment of a trademark and property, plant and equipment in Asia Pacific; $35M an indemnification 47 agreement entered into as a part of the refranchising of certain of our bottling operations; $10M tax litigation expense.
+  - 2023-12-31: EBIT increase 1,745M (15.4% of that year's EBIT) - Gate 1
+  - 2024-12-31: EBIT increase 4,008M (40.1% of that year's EBIT) - Gate 1
+  - 2025-12-31: EBIT increase 1,137M (8.3% of that year's EBIT) - Gate 1
+- Passage (us-gaap:FairValueDisclosuresTextBlock): > These charges were recorded in the line item other operating charges in our consolidated statements of income. The remaining carrying value of the trademark is $42 million. 3During the years ended December 31, 2025 and 2024, the Company recorded asset impairment charges of $960 million and $760 million, respectively, related to our BodyArmor trademark in North America. The 2025 impairment charge was primarily driven by revised projections of future operating results, including a slowing of the p
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### KO-2. Asset Impairment Charges (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2021-12 78, 2023-12 46, 2024-12 63, 2025-12 12
+- Present in 4 of the last five years: recurring by rule
+- Model: recurring=False, passage P1, P2, P3: The item is described as a one-off event in the context of the company's operations. The passage P1 mentions specific impairment charges for 2025 ($1,274 million, $235 million, $28 million) and P2 mentions reductions in impairment charges for the periods ended July 3, 2026 and June 27, 2025. However, the item 'Asset Impairment Charges' listed with amounts for FY2021 (78M), FY2023 (46M), FY2024 (63
+- **Proposal: no adjustment**, confidence medium. Present in 4 of the last 5 years: recurring, kept in EBIT. Filing reading: The item is described as a one-off event in the context of the company's operations. The passage P1 mentions specific impairment charges for 2025 ($1,274 million, $235 million, $28 million) and P2 mentions reductions in impairment charges for the periods ended July 3, 2026 and June 27, 2025.
+- Passage (us-gaap:FairValueDisclosuresTextBlock): > 1The Company is required to record assets and liabilities that are held for sale at the lower of carrying value or fair value less any costs to sell based on the estimated proceeds. During the year ended December 31, 2025, the Company recorded a charge of $1,274 million due to the impairment of assets related to our bottling operations in Africa becoming held for sale and was calculated based on Level 3 inputs. Refer to Note 2. The Company also recorded a charge of $235 million due to the write-
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### KO-3. Impairment Of Intangible Assets Excluding Goodwill (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2021-12 78, 2022-12 57, 2024-12 886, 2025-12 1,033
+- Present in 4 of the last five years: recurring by rule
+- Model: recurring=False, passage P3: The item is described as a one-off that the filing describes as unusual or not expected to recur. The passage P3 states: 'We have recorded in the past, and we may be required to record in the future, significant impairment charges or our proportionate share of significant impairment charges recorded by equity method investees in the future and, if we do so, our net income could be materially aden
+- **Proposal: no adjustment**, confidence medium. Present in 4 of the last 5 years (recurring), but 2024-12: 886M against a typical 68M; 2025-12: 1,033M against a typical 68M; the excess over the typical level (median of the other years) is adjusted. Filing reading: The item is described as a one-off that the filing describes as unusual or not expected to recur. The passage P3 states: 'We have recorded in the past, and we may be required to record in the future, significant impairment charges or our proportionate share of significant impairment charges recorded by equity method investees in the future and, if we do so, our net income could be materially aden
+- Passage (item_1a): > In the event of default by or failure of one or more of our counterparties, we could incur significant losses, which could negatively impact our results of operations and financial condition. We may be required to recognize impairment charges that could materially affect our financial results. We assess our noncurrent assets, including trademarks, goodwill and other intangible assets, equity method investments and other long-lived assets, as and when required by accounting principles generally a
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+## NIKE, Inc. (NKE)
+
+Latest fiscal-year EBIT 3,797M (2026-05-31). Notes: operating income from us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest (derived from pretax)
+
+### NKE-1. Asset Impairment Charges (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2023-05 156, 2024-05 48, 2025-05 33, 2026-05 50, 2026-08 51
+- Present in 4 of the last five years: recurring by rule
+- Model: recurring=False, passage none: The asset impairment charges are reported as a specific charge for each fiscal year (FY2023: 156M, FY2024: 48M, FY2025: 33M, FY2026: 50M), but the context indicates that these charges are part of a multi-year enterprise program (Pace) announced in October 2026, which is a cost realignment plan. The program is intended to decrease NIKE's cost structure through pre-tax charges, and the charges are a
+- **Proposal: no adjustment**, confidence low. Present in 4 of the last 5 years: recurring, kept in EBIT. Filing reading: The asset impairment charges are reported as a specific charge for each fiscal year (FY2023: 156M, FY2024: 48M, FY2025: 33M, FY2026: 50M), but the context indicates that these charges are part of a multi-year enterprise program (Pace) announced in October 2026, which is a cost realignment plan. The program is intended to decrease NIKE's cost structure through pre-tax charges, and the charges are a
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### NKE-2. Restructuring Charges (tagged in the notes, restructuring)
+
+- Amounts (USD millions; charge when positive): 2024-05 443
+- Present in 1 of the last five years: not recurring by rule
+- Model: recurring=False, passage none: The company recognized restructuring charges of $443 million in fiscal 2024, which was a one-time event related to streamlining the organization and reducing the global workforce. This is described as a restructuring charge that occurred in fiscal 2024, and the context indicates it was a specific organizational change rather than a recurring operational cost. The relevant passage is P3, which also
+- **Proposal: ADJUST**, confidence low. Present in 1 of the last 5 years: not recurring. Filing reading: The company recognized restructuring charges of $443 million in fiscal 2024, which was a one-time event related to streamlining the organization and reducing the global workforce. This is described as a restructuring charge that occurred in fiscal 2024, and the context indicates it was a specific organizational change rather than a recurring operational cost.
+  - 2024-05-31: EBIT increase 443M (7.0% of that year's EBIT) - Gate 1
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### NKE-3. Severance Costs1 (tagged in the notes, restructuring)
+
+- Amounts (USD millions; charge when positive): 2026-05 385
+- Present in 1 of the last five years: not recurring by rule
+- Model: recurring=False, passage P1: The passage P1 describes severance costs for fiscal 2026 as $385 million, which is a specific charge related to organizational changes. It also mentions that in fiscal 2024, the company recognized restructuring charges of $443 million. These charges are described as being related to specific organizational changes and restructuring activities, which are not recurring but rather one-time events. P1
+- **Proposal: ADJUST**, confidence medium. Present in 1 of the last 5 years: not recurring. Filing reading: The passage P1 describes severance costs for fiscal 2026 as $385 million, which is a specific charge related to organizational changes. It also mentions that in fiscal 2024, the company recognized restructuring charges of $443 million. FY2026: the filing states $385M; the tag gives $300M; the stated charge is used.
+  - 2026-05-31: EBIT increase 385M (10.1% of that year's EBIT) - Gate 1
+- Passage (us-gaap:RestructuringAndRelatedActivitiesDisclosureTextBlock): > Employee severance costs are recognized when a future related expense is considered probable and reasonably estimable. The expected charges are estimates that are subject to a number of assumptions, and actual results may vary from the estimates provided. 2026 SEVERANCE In fiscal 2026, the Company recognized $385 million of estimated employee severance costs related to organizational changes, of which $231 million were classified within Operating overhead expense and $154 million were classified
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+## BOEING CO (BA)
+
+Latest fiscal-year EBIT 4,281M (2025-12-31). Notes: operating income from us-gaap:OperatingIncomeLoss
+
+### BA-1. Gain on dispositions, net (income statement line, disposal)
+
+- Amounts (USD millions; income when positive): 2021-12 277, 2022-12 6, 2023-12 2, 2024-12 46, 2025-12 9,672, 2026-06 9,687
+- Present in 5 of the last five years: recurring by rule
+- Model: recurring=False, passage none: The item 'Gain on dispositions, net' is described as a one-off event in the context of the Digital Aviation Solutions Divestiture, which occurred specifically on October 31, 2025. The gain of $9,566 million recorded in the 2025 fiscal year is a result of a divestiture that was completed in 2025, and the subsequent financial statements for 2026 (as per P2 and P3) reference the impact of this divest
+- **Proposal: ADJUST**, confidence low. Present in 5 of the last 5 years (recurring), but 2021-12: 277M against a typical 26M; 2025-12: 9,672M against a typical 26M; 2026-06: 9,687M against a typical 26M; the excess over the typical level (median of the other years) is adjusted. Filing reading: The item 'Gain on dispositions, net' is described as a one-off event in the context of the Digital Aviation Solutions Divestiture, which occurred specifically on October 31, 2025. The gain of $9,566 million recorded in the 2025 fiscal year is a result of a divestiture that was completed in 2025, and the subsequent financial statements for 2026 (as per P2 and P3) reference the impact of this divest
+  - 2021-12-31: EBIT decrease 251M (8.7% of that year's EBIT) - Gate 1
+  - 2025-12-31: EBIT decrease 9,646M (225.3% of that year's EBIT) - Gate 1
+  - 2026-06-30: EBIT decrease 9,661M (210.0% of that year's EBIT) - Gate 1
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### BA-2. Asset Impairment Charges (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2021-12 98, 2022-12 112, 2023-12 46, 2024-12 112, 2025-12 45, 2026-06 33
+- Present in 5 of the last five years: recurring by rule
+- Model: recurring=False, passage none: The item is described as a one-off event in the context of the 737 MAX customer concessions. The passage P2 states that in 2024, the company recorded an earnings charge of $443 million related to estimated considerations to customers for disruption caused by the January 2024 737-9 door plug accident and grounding. This charge is specific to the incident and not a recurring operational cost. The 20
+- **Proposal: no adjustment**, confidence low. Present in 5 of the last 5 years: recurring, kept in EBIT. Filing reading: The item is described as a one-off event in the context of the 737 MAX customer concessions. The passage P2 states that in 2024, the company recorded an earnings charge of $443 million related to estimated considerations to customers for disruption caused by the January 2024 737-9 door plug accident and grounding.
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### BA-3. Severance Costs1 (tagged in the notes, restructuring)
+
+- Amounts (USD millions; charge when positive): 2024-12 295
+- Present in 1 of the last five years: not recurring by rule
+- Model: recurring=False, passage Item: Severance Costs1 (charge), restructuring. Amounts by year: FY2024: 295M.: The passage mentions 'Severance Costs1 (charge), restructuring. Amounts by year: FY2024: 295M.' This indicates a one-time charge for severance and restructuring in FY2024, which is described as a specific charge rather than a recurring operational cost. The passage does not provide information about recurring severance or restructuring costs in other years, so it is classified as a one-off event.
+- **Proposal: ADJUST**, confidence low. Present in 1 of the last 5 years: not recurring. Filing reading: The passage mentions 'Severance Costs1 (charge), restructuring. Amounts by year: FY2024: 295M.' This indicates a one-time charge for severance and restructuring in FY2024, which is described as a specific charge rather than a recurring operational cost.
+  - 2024-12-31: EBIT increase 295M (2.8% of that year's EBIT) - Gate 1
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+## CATERPILLAR INC (CAT)
+
+Latest fiscal-year EBIT 11,151M (2025-12-31). Notes: operating income from us-gaap:OperatingIncomeLoss
+
+### CAT-1. Goodwill Impairment Loss (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2022-12 925
+- Present in 1 of the last five years: not recurring by rule
+- Model: recurring=False, passage P1: The passage P1 states that the Company completed its annual goodwill impairment tests in the fourth quarter of 2025 and found that the fair value of each reporting unit was substantially above its carrying value, resulting in no impairment charges. This indicates that goodwill impairment is not a recurring event for Caterpillar in the current year (2025), as there was no impairment charge. However
+- **Proposal: ADJUST**, confidence medium. Present in 1 of the last 5 years: not recurring. Filing reading: The passage P1 states that the Company completed its annual goodwill impairment tests in the fourth quarter of 2025 and found that the fair value of each reporting unit was substantially above its carrying value, resulting in no impairment charges. This indicates that goodwill impairment is not a recurring event for Caterpillar in the current year (2025), as there was no impairment charge.
+  - 2022-12-31: EBIT increase 925M (11.7% of that year's EBIT) - Gate 1
+- Passage (item_7): > We categorize the fair value determination as Level 3 in the fair value hierarchy due to its use of internal projections and unobservable measurement inputs. The Company completed its annual goodwill impairment tests in the fourth quarter of 2025. Based on those tests, the fair value of each reporting unit was substantially above its respective carrying value, including goodwill, resulting in no impairment charges. Caterpillar's market capitalization has remained significantly above the net book
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### CAT-2. Restructuring Charges (tagged in the notes, restructuring)
+
+- Amounts (USD millions; charge when positive): 2021-12 90, 2022-12 299, 2023-12 780, 2024-12 359, 2025-12 448, 2026-06 599
+- Present in 5 of the last five years: recurring by rule
+- Model: recurring=False, passage P1, P2, P3: The item is a one-off that the filing describes as unusual or not expected to recur. The passages P1, P2, and P3 describe the accounting for restructuring costs but do not indicate that restructuring charges are a recurring part of the company's operations. The amounts provided (FY2021: 90M, FY2022: 299M, FY2023: 780M, FY2024: 359M, FY2025: 448M) show significant year-over-year fluctuations, which
+- **Proposal: no adjustment**, confidence medium. Present in 5 of the last 5 years: recurring, kept in EBIT. Filing reading: The item is a one-off that the filing describes as unusual or not expected to recur. The passages P1, P2, and P3 describe the accounting for restructuring costs but do not indicate that restructuring charges are a recurring part of the company's operations.
+- Passage (us-gaap:RestructuringAndRelatedActivitiesDisclosureTextBlock): > Our accounting for employee separations is dependent upon how the particular program is designed. For voluntary programs, we recognize eligible separation costs at the time of employee acceptance unless the acceptance requires explicit approval by the company. For involuntary programs, we recognize eligible costs when management has approved the program, the affected employees have been properly notified and the costs are estimable.
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+## DEERE & CO (DE)
+
+Latest fiscal-year EBIT 9,427M (2025-11-02). Notes: operating income from us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments (derived from pretax)
+
+### DE-1. Other operating expenses (income statement line, other)
+
+- Amounts (USD millions; charge when positive): 2021-10 1,343, 2022-10 1,275, 2023-10 1,292, 2024-10 1,257, 2025-11 1,124, 2026-08 1,153
+- Present in 5 of the last five years: recurring by rule
+- Model: recurring=False, passage P2: The passage P2 describes a special item related to litigation accrual and impairment charges that occurred in 2025. These are non-recurring items as they are specific to the year 2025 and not part of regular operations. The impairment charge in Q3 2025 and litigation accrual in Q4 2025 are one-time events that are unusual and not expected to recur.
+- **Proposal: no adjustment** (ambiguous), confidence low. Present in 5 of the last 5 years (recurring by rule): kept in EBIT, but the filing may call it a one-off (P2); for review at Gate 1. Filing reading: The passage P2 describes a special item related to litigation accrual and impairment charges that occurred in 2025. These are non-recurring items as they are specific to the year 2025 and not part of regular operations.
+- Passage (us-gaap:UnusualOrInfrequentItemsDisclosureTextBlock): > 4. SPECIAL ITEMS 2025 Special Items Litigation Accrual In the fourth quarter of 2025, we have increased our total accrued losses on unresolved legal matters in connection with a consolidated multidistrict class action antitrust lawsuit by $95 pretax ($75 after-tax) which was included in “Selling, administrative and general expenses” (see Note 20). The expense was allocated $47 to PPA, $24 to SAT, and $24 to CF. Impairment In the third quarter of 2025, we recorded a non-cash impairment charge of 
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 
+
+### DE-2. Asset Impairment Charges (tagged in the notes, impairment)
+
+- Amounts (USD millions; charge when positive): 2021-10 50, 2022-10 88
+- Present in 2 of the last five years: not recurring by rule
+- Model: recurring=False, passage none: The passage P3 mentions that the company has asset impairment charges of $50M in FY2021 and $88M in FY2022, but does not indicate that these charges are recurring annually. The latest operating income is $9,427M, which suggests that the impairment charges are not a regular part of the company's operations but rather specific to the years mentioned. The passage P3 also states that the end of year 2
+- **Proposal: ADJUST**, confidence low. Present in 2 of the last 5 years: not recurring. Filing reading: The passage P3 mentions that the company has asset impairment charges of $50M in FY2021 and $88M in FY2022, but does not indicate that these charges are recurring annually. The latest operating income is $9,427M, which suggests that the impairment charges are not a regular part of the company's operations but rather specific to the years mentioned.
+  - 2021-10-31: EBIT increase 50M (0.6% of that year's EBIT) - Gate 1
+  - 2022-10-30: EBIT increase 88M (0.9% of that year's EBIT) - Gate 1
+- Your verdict: [ ] correct  [ ] false positive  [ ] missed adjustment  Comment: 

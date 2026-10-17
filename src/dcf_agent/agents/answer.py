@@ -1,5 +1,6 @@
 """Answers built from templates and sourced values: data (I1), history (I2), cost of
-capital (I3) and audit (I10).
+capital (I3) and audit (I10); filing details (dilution, leases, tax rate, captive
+finance) and normalized EBIT with the approved adjustments and their passages.
 
 Every number in an answer body is a cited figure: the formatted value followed by a
 marker [n] that points to a source entry (source, link, filing date, element,
@@ -15,6 +16,7 @@ from typing import Any, Literal, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dcf_agent.contracts.accounting import Adjustment
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import (
     ConceptStatus,
@@ -23,7 +25,7 @@ from dcf_agent.contracts.inputs import (
     Intent,
     ValuationRequest,
 )
-from dcf_agent.contracts.modeling import WACCResult
+from dcf_agent.contracts.modeling import ForecastAssumptions, ForecastScenarios, WACCResult
 from dcf_agent.contracts.provenance import Provenance, Sourced
 from dcf_agent.llm import LLMError, LocalLLM
 
@@ -230,6 +232,8 @@ def fmt(value: float, unit: Unit) -> str:
     for scale, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
         if size >= scale:
             return f"{sign}{prefix}{size / scale:,.2f}{suffix}"
+    if unit == "usd":  # prices per share and other small amounts keep their cents
+        return f"{sign}{prefix}{size:,.2f}"
     return f"{sign}{prefix}{size:,.0f}"
 
 
@@ -591,6 +595,323 @@ def describe(prov: Provenance) -> str:
     }[prov.source]
 
 
+# Questions about what the filings' notes add, by topic.
+FILING_TOPICS: tuple[tuple[str, str], ...] = (
+    (
+        "dilution",
+        r"dilut|stock options?|\boptions\b|\brsus?\b|restricted stock|share units|"
+        r"performance shares|psus?\b|exercise price",
+    ),
+    ("leases", r"lease (discount )?rate|discount rate .*lease|lease liabilit"),
+    ("tax", r"marginal tax|tax rate"),
+    ("captive", r"captive|financial services|finance (arm|subsidiary)|industrial debt"),
+)
+NORMALIZED = re.compile(r"clean|normali[sz]|adjust|one-?off|non-?recurring|restructur|impair")
+QUOTE = 300
+
+
+def topics(question: str) -> list[str]:
+    text = question.lower()
+    return [name for name, pattern in FILING_TOPICS if re.search(pattern, text)]
+
+
+def filings_answer(
+    request: ValuationRequest, bundle: DataBundle, wanted: list[str], intent: Intent | None
+) -> Answer:
+    """What the filings' notes say on dilution, leases, the tax rate and captive finance."""
+    cite = Citations()
+    title = f"{request.company_name} ({request.ticker}): from the filings' notes"
+    insights = bundle.filing_insights
+    if insights is None:
+        return cite.answer(intent, title, "The filings' notes were not read in this session.")
+    parts: list[str] = []
+    if "dilution" in wanted:
+        rows = [
+            [
+                s.security_id,
+                s.kind,
+                cite.cite(f"{s.security_id} count", s.count, "shares"),
+                cite.cite(f"{s.security_id} exercise price", s.strike_price, "usd")
+                if s.strike_price is not None
+                else "",
+            ]
+            for s in insights.dilutive_securities
+        ]
+        parts.append(
+            "Dilutive securities (options by the treasury stock method; unvested units in "
+            "full):\n\n" + table(["Security", "Kind", "Count", "Exercise price"], rows)
+            if rows
+            else "No options or unvested share units were read from the filings."
+        )
+    if "leases" in wanted:
+        lines = [
+            f"{x.lease_type.capitalize()} leases: liability "
+            f"{cite.cite('Lease liability', x.liability, 'usd')}"
+            + (
+                f", weighted-average discount rate "
+                f"{cite.cite('Lease discount rate', x.discount_rate, 'pct')}"
+                if x.discount_rate is not None
+                else ""
+            )
+            for x in insights.lease_liabilities
+        ]
+        parts.append("\n".join(lines) or "No lease discount rate was read from the filings.")
+    if "tax" in wanted:
+        lines = [
+            f"Marginal tax rate {cite.cite('Marginal tax rate', x.amount, 'pct')}: {x.description}"
+            for x in insights.tax_items
+            if x.amount is not None
+        ]
+        parts.append(
+            "\n".join(lines) or "The rate reconciliation was not read; the 25% policy rate applies."
+        )
+    if "captive" in wanted:
+        lines = [
+            f"{x.item_id.split(':', 1)[-1]}: "
+            f"{cite.cite('Captive-finance debt', x.amount, 'usd')}; {x.description}"
+            for x in insights.captive_finance
+            if x.amount is not None
+        ]
+        parts.append(
+            "\n".join(lines) or "No captive-finance split was needed or read from the filings."
+        )
+    return cite.answer(intent, title, "\n\n".join(parts))
+
+
+def normalized_section(cite: Citations, state: Any) -> str:
+    """Clean EBIT by year and the approved adjustments, each with its filing passage."""
+    normalized = state.get("normalized")
+    approved: tuple[Adjustment, ...] = state.get("approved_adjustments", ())
+    if normalized is None:
+        return ""
+    passages = {
+        p.adjustment.adjustment_id: p.passage for p in state.get("proposals", ()) if p.passage
+    }
+    periods = [*normalized.annual, *((normalized.ttm,) if normalized.ttm else ())]
+    rows = [
+        [
+            f"TTM to {p.period_end}" if p.kind == "ttm" else str(p.period_end),
+            cite.cite(f"Clean EBIT {p.period_end}", p.clean_ebit, "usd"),
+        ]
+        for p in periods
+    ]
+    lines = [
+        "Normalized EBIT (approved adjustments applied):",
+        "",
+        table(["Period", "Clean EBIT"], rows),
+    ]
+    if approved:
+        lines += ["", "Approved adjustments:"]
+        for a in approved:
+            sign = "+" if a.direction == "increase" else "-"
+            lines.append(
+                f"- {a.period_end} {a.item}: {sign}"
+                f"{cite.cite(a.item, a.amount, 'usd', a.rationale[:200])}"
+            )
+            quote = passages.get(a.adjustment_id)
+            if quote:
+                lines.append(f'  > "{" ".join(quote.split())[:QUOTE]}..."')
+                where = next((c for c in a.evidence if c.table_id), a.evidence[0])
+                lines.append(f"  (filing {where.accession}, {where.section})")
+    else:
+        lines += ["", "No adjustments were approved: clean EBIT is reported EBIT (with leases)."]
+    return "\n".join(lines)
+
+
+# The assumption a "why" question names (I4), by its rationale key.
+ASSUMPTIONS: tuple[tuple[str, str], ...] = (
+    ("terminal_growth", r"terminal|long[- ]run growth|perpetual"),
+    ("terminal_roic", r"roic|moat|return on (invested )?capital"),
+    ("reinvestment", r"reinvest|sales[- ]to[- ]capital|capital (need|intensity)|capex"),
+    ("tax", r"tax"),
+    ("margin", r"margin|profitab"),
+    ("growth", r"growth|revenue|sales"),
+)
+YEARS_SHOWN = (0, 4, 9)  # forecast years 1, 5 and 10
+
+
+def engine_value(value: float, ref: str, as_of: date, note: str) -> Sourced[float]:
+    return Sourced[float](
+        value=value,
+        prov=Provenance(source="derived", ref=ref, as_of=as_of, confidence="medium", note=note),
+    )
+
+
+def scenario_of(question: str) -> str:
+    text = question.lower()
+    return next((s for s in ("bear", "bull") if re.search(rf"\b{s}", text)), "base")
+
+
+def unavailable(request: ValuationRequest, state: Any, what: str) -> Answer:
+    notes = list(state.get("forecast_notes", ())) or [state.get("wacc_error", "")]
+    reason = "; ".join(n for n in notes if n)[:400] or "the forecast or the valuation was not built"
+    return Citations().answer(
+        request.intent,
+        f"{request.company_name} ({request.ticker}): {what}",
+        f"Not available in this session: {reason}.",
+    )
+
+
+def value_answer(request: ValuationRequest, state: Any) -> Answer:
+    """Value per share (I6): the weighted value, each scenario, and the market for context."""
+    valuation = state.get("valuation")
+    scenarios: ForecastScenarios | None = state.get("forecast")
+    if valuation is None or scenarios is None:
+        return unavailable(request, state, "value per share")
+    cite = Citations()
+    as_of = request.valuation_date
+    by = {f.scenario: f for f in scenarios.scenarios}
+    rows = []
+    for result in valuation.results:
+        f = by[result.scenario]
+        ref = f"engine {result.calculation_ref} (input {result.input_hash[:12]})"
+        rows.append(
+            [
+                result.scenario,
+                f"{valuation.probabilities[result.scenario]:.0%}",
+                cite.cite(
+                    f"{result.scenario} value per share",
+                    engine_value(result.value_per_share, ref, as_of, "DCF value per share"),
+                    "usd",
+                ),
+                cite.cite(f"{result.scenario} growth, year 1", f.revenue_growth[0], "pct"),
+                cite.cite(f"{result.scenario} margin, year 5", f.operating_margin[4], "pct"),
+                cite.cite(f"{result.scenario} terminal growth", f.terminal_growth, "pct"),
+            ]
+        )
+    weighted = engine_value(
+        valuation.weighted, "engine: probability-weighted scenarios", as_of, "weighted value"
+    )
+    lines = [
+        f"Value per share (probability-weighted): {cite.cite('Weighted value', weighted, 'usd')}, "
+        f"range {valuation.low:,.2f} to {valuation.high:,.2f} across the scenarios.",
+        "",
+        table(
+            [
+                "Scenario",
+                "Probability",
+                "Value per share",
+                "Growth, year 1",
+                "Margin, year 5",
+                "Terminal growth",
+            ],
+            rows,
+        ),
+    ]
+    bundle: DataBundle | None = state.get("data")
+    if bundle is not None and bundle.market is not None:
+        price = bundle.market.close.price
+        lines += [
+            "",
+            f"Market price {cite.cite('Market price', price, 'usd')} on "
+            f"{bundle.market.close.observed_on}, shown for context only: it is not an input.",
+        ]
+    review = [n for n in state.get("forecast_notes", ()) if n.startswith(("Gate 2", "base value"))]
+    if review:
+        lines += ["", "For review:"] + [f"- {n}" for n in review]
+    if valuation.workbook:
+        lines += ["", f"Workbook: {valuation.workbook}"]
+    return cite.answer(
+        request.intent,
+        f"{request.company_name} ({request.ticker}): value as of {as_of}",
+        "\n".join(lines),
+    )
+
+
+def scenario_answer(request: ValuationRequest, state: Any) -> Answer:
+    """The scenarios (I5): drivers in years 1, 5 and 10, value, and each story."""
+    scenarios: ForecastScenarios | None = state.get("forecast")
+    if scenarios is None:
+        return unavailable(request, state, "scenarios")
+    cite = Citations()
+    valuation = state.get("valuation")
+    parts = []
+    for f in scenarios.scenarios:
+        rows = [
+            [
+                f"Year {k + 1} ({f.year_ends[k].year})",
+                cite.cite(f"{f.scenario} growth, year {k + 1}", f.revenue_growth[k], "pct"),
+                cite.cite(f"{f.scenario} margin, year {k + 1}", f.operating_margin[k], "pct"),
+                cite.cite(
+                    f"{f.scenario} sales to capital, year {k + 1}", f.sales_to_capital[k], "ratio"
+                ),
+            ]
+            for k in YEARS_SHOWN
+            if k < len(f.year_ends)
+        ]
+        result = valuation.scenario(f.scenario) if valuation is not None else None
+        head = f"{f.scenario.capitalize()} ({f.probability:.0%})" + (
+            f": {result.value_per_share:,.2f} per share" if result is not None else ""
+        )
+        parts.append(
+            f"{head}\n{f.narrative}\n\n"
+            + table(["Year", "Revenue growth", "Operating margin", "Sales to capital"], rows)
+        )
+    return cite.answer(
+        request.intent, f"{request.company_name} ({request.ticker}): scenarios", "\n\n".join(parts)
+    )
+
+
+def sensitivity_answer(request: ValuationRequest, state: Any) -> Answer:
+    """Sensitivity (I7): base value per share by WACC and terminal growth."""
+    valuation = state.get("valuation")
+    if valuation is None or not valuation.grid:
+        return unavailable(request, state, "sensitivity")
+    header = ["WACC \\ terminal growth"] + [f"{g:.2%}" for g in valuation.growths]
+    rows = [
+        [f"{w:.2%}"] + ["-" if v is None else f"{v:,.2f}" for v in row]
+        for w, row in zip(valuation.waccs, valuation.grid, strict=True)
+    ]
+    base = valuation.scenario("base")
+    body = (
+        "Base-scenario value per share as WACC and terminal growth change (engine reruns; "
+        "'-' where terminal growth is not below WACC):\n\n"
+        + table(header, rows)
+        + (f"\n\nBase value: {base.value_per_share:,.2f}." if base is not None else "")
+    )
+    return Citations().answer(
+        request.intent, f"{request.company_name} ({request.ticker}): sensitivity", body
+    )
+
+
+def why_answer(request: ValuationRequest, state: Any) -> Answer:
+    """Why an assumption (I4): its rule, the evidence, and its values."""
+    scenarios: ForecastScenarios | None = state.get("forecast")
+    if scenarios is None:
+        return unavailable(request, state, "assumption rationale")
+    question = (request.question or "").lower()
+    name = scenario_of(question)
+    item: ForecastAssumptions = next(f for f in scenarios.scenarios if f.scenario == name)
+    key = next((k for k, pattern in ASSUMPTIONS if re.search(pattern, question)), None)
+    keys = [key] if key else [k for k, _ in ASSUMPTIONS if k in item.rationale]
+    cite = Citations()
+    lines = []
+    for k in keys:
+        if k not in item.rationale:
+            continue
+        values = {
+            "growth": (item.revenue_growth[0], "growth, year 1"),
+            "margin": (item.operating_margin[4], "margin, year 5"),
+            "reinvestment": (item.sales_to_capital[0], "sales to capital"),
+            "tax": (item.tax_rate[0], "tax rate, year 1"),
+            "terminal_growth": (item.terminal_growth, "terminal growth"),
+            "terminal_roic": (item.terminal_roic, "terminal ROIC"),
+        }
+        value, label = values.get(k, (None, ""))
+        unit: Unit = "ratio" if k == "reinvestment" else "pct"
+        shown = f" ({label} {cite.cite(f'{name} {label}', value, unit)})" if value else ""
+        lines.append(f"{k.replace('_', ' ').capitalize()}{shown}: {item.rationale[k]}")
+    review = [n for n in state.get("forecast_notes", ()) if n.startswith("Gate 2")]
+    if review:
+        lines += ["", "Model choices the statistics did not support (the rule applied):"]
+        lines += [f"- {n.removeprefix('Gate 2: ')}" for n in review]
+    return cite.answer(
+        request.intent,
+        f"{request.company_name} ({request.ticker}): why, {name} scenario",
+        "\n".join(lines) or "No rationale was recorded for that assumption.",
+    )
+
+
 def summary_answer(request: ValuationRequest, bundle: DataBundle | None, plan_gaps: str) -> Answer:
     cite = Citations()
     title = f"{request.company_name} ({request.ticker}) as of {request.valuation_date}"
@@ -618,19 +939,45 @@ def render(state: Any, llm: LocalLLM | None = None) -> Answer:
     question = request.question or ""
     intent = request.intent
     if intent in ("I1", "I2", "I10"):
-        concepts = select_concepts(question, llm)
         if bundle is None:
             return summary_answer(request, None, "No data was collected.")
+        wanted = topics(question)
+        if wanted and intent in ("I1", "I10"):
+            return filings_answer(request, bundle, wanted, intent)
+        if intent == "I10" and NORMALIZED.search(question.lower()) and state.get("normalized"):
+            cite = Citations()
+            title = f"{request.company_name} ({request.ticker}): where clean EBIT comes from"
+            return cite.answer(intent, title, normalized_section(cite, state))
+        concepts = select_concepts(question, llm)
         if intent == "I1":
             return data_answer(bundle, request, concepts)
         if intent == "I2":
-            return history_answer(bundle, request, concepts)
+            answer = history_answer(bundle, request, concepts)
+            if state.get("normalized") is None:
+                return answer
+            # The same numbering continues in the normalized section.
+            cite = Citations()
+            cite.sources, cite.figures = list(answer.sources), list(answer.figures)
+            cite.index = {
+                (s.source, s.ref, s.period_end, s.filed, s.note): s.number for s in answer.sources
+            }
+            section = normalized_section(cite, state)
+            return cite.answer("I2", answer.title, answer.body + "\n\n" + section)
         return audit_answer(request, bundle, wacc, question, concepts)
     if intent == "I3":
         return wacc_answer(
             request, bundle, wacc, state.get("wacc_error", ""), state.get("wacc_decision")
         )
-    gaps = [s for s in request.plan if s not in ("data", "wacc", "answer")]
+    if intent in ("I6", "I9"):
+        return value_answer(request, state)
+    if intent == "I5":
+        return scenario_answer(request, state)
+    if intent == "I7":
+        return sensitivity_answer(request, state)
+    if intent == "I4":
+        return why_answer(request, state)
+    done = ("data", "normalize", "wacc", "forecast", "value", "excel", "answer")
+    gaps = [s for s in request.plan if s not in done]
     note = ("Not available yet in this phase: " + ", ".join(gaps) + ".") if gaps else ""
     return summary_answer(request, bundle, note)
 

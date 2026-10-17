@@ -5,6 +5,10 @@ the XBRL shortcut disabled, so the model must find and point at the value. Each
 reading is classified: correct with high confidence; correct but flagged; wrong
 but flagged; not found; or wrong with high confidence (the dangerous case). The
 XBRL path is checked on the same questions without the model.
+
+Noise sensitivity (no judge): a wrong reading equal to one of the item's
+distractors (the same element for an earlier period, kept in the gold set) was
+caused by a nearby irrelevant figure.
 """
 
 import argparse
@@ -70,6 +74,10 @@ def main() -> None:
             reading = analyst.read(spec, accessions[item["cik"]], period_end, use_xbrl=False)
             seconds = time.monotonic() - began
             xbrl = analyst.tagged(spec, item["accession"], period_end)
+            read = reading.value.value if reading.value else None
+            distractor = read is not None and any(
+                close(read, d["value"]) for d in item.get("distractors", ())
+            )
             row = {
                 "id": item["id"],
                 "field": item["field"],
@@ -77,6 +85,7 @@ def main() -> None:
                 "read": reading.value.value if reading.value else None,
                 "confidence": reading.confidence,
                 "outcome": outcome(reading, item["answer"]),
+                "distractor": distractor and not close(read or 0.0, item["answer"]),
                 "reasons": list(reading.reasons),
                 "cell": reading.cell,
                 "calls": reading.model_calls,
@@ -101,6 +110,10 @@ def main() -> None:
         "correct_high": counts["correct_high"] / n if n else 0,
         "confident_wrong": counts["wrong_high"] / n if n else 0,
         "xbrl_path_correct": sum(r["xbrl_correct"] for r in rows) / n if n else 0,
+        # Wrong readings caused by a distractor, over all readings and over wrong ones.
+        "noise_sensitivity": sum(r["distractor"] for r in rows) / n if n else 0,
+        "wrong_from_distractor": sum(r["distractor"] for r in rows)
+        / max(1, counts["wrong_high"] + counts["wrong_low"]),
         "by_field": {
             f: {
                 "n": sum(r["field"] == f for r in rows),

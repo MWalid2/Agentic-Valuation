@@ -1,7 +1,8 @@
 """The valuation graph: Router, Gate 0, then the plan's nodes, checkpointed per step.
 
 router -> gate0 (interrupt; loops until confirmed or stopped) -> plan steps in order
-(data, wacc, answer; steps not built yet are recorded and skipped) -> END.
+(data, normalize with Gate 1 on its proposed adjustments, wacc, answer; steps not
+built yet are recorded and skipped) -> END.
 Every step counts against the Budget (human waiting time excluded) and appends
 audit Events; Gate 0 decisions are ApprovalRecords tied to a hash of what was shown.
 """
@@ -25,23 +26,36 @@ from pydantic import BaseModel, ValidationError
 
 from dcf_agent.agents.answer import Answer, render
 from dcf_agent.agents.data_loop import DataReview
+from dcf_agent.agents.normalizer import AdjustmentProposal, Flag
 from dcf_agent.agents.router import INTENTS, PLANS, Route, Router
 from dcf_agent.agents.wacc import WaccDecision
+from dcf_agent.contracts.accounting import Adjustment, NormalizedFinancials
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import Intent, ValuationRequest
-from dcf_agent.contracts.modeling import WACCResult
+from dcf_agent.contracts.modeling import ForecastScenarios, WACCResult
+from dcf_agent.contracts.provenance import Provenance, Sourced
 from dcf_agent.contracts.workflow import ApprovalRecord, Budget, Event
+from dcf_agent.engine.assemble import lease_rate, marginal_tax_rate
+from dcf_agent.engine.normalize import NormalizationError, Policy, normalize
+from dcf_agent.engine.valuation import value_scenarios, write_workbook
 from dcf_agent.graph.serde import ContractSerializer
-from dcf_agent.graph.state import GateDecision, GraphState
+from dcf_agent.graph.state import AdjustmentDecision, GateDecision, GraphState
 
-WIRED = ("data", "wacc", "answer")
+WIRED = ("data", "normalize", "wacc", "forecast", "value", "excel", "answer")
 OUTPUT_INTENT: dict[str, Intent] = {"quick": "I6", "excel": "I9"}
 MODES: dict[str, Literal["info", "quick", "full"]] = {
     "question": "info",
     "quick": "quick",
     "excel": "full",
 }
-Component = Literal["router", "data", "wacc", "engine", "system"]
+Component = Literal["router", "data", "normalizer", "wacc", "forecast", "engine", "system"]
+Forecasting = Callable[
+    [DataBundle, NormalizedFinancials, WACCResult],
+    tuple[ForecastScenarios | None, tuple[str, ...]],
+]
+# Proposed adjustments, flagged recurring items, and notes.
+Proposals = tuple[tuple[AdjustmentProposal, ...], tuple[Flag, ...], tuple[str, ...]]
+MARGINAL_TAX = 0.25  # policy when the filings' rate is not read
 
 
 def default_budget() -> Budget:
@@ -63,6 +77,12 @@ class Services:
     # The WACC and, when the WACC Agent decided, its decision.
     wacc: Callable[[DataBundle], tuple[WACCResult, WaccDecision | None]]
     answer: Callable[[GraphState], Answer] = render
+    # The Normalization Agent's proposals; None: the step is recorded and skipped.
+    normalize: Callable[[DataBundle], Proposals] | None = None
+    # The Forecast Agent's scenarios and notes; None: the step is recorded and skipped.
+    forecast: Forecasting | None = None
+    # Where the full model's workbook is written; None: not written.
+    models: Path | None = None
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
 
 
@@ -109,15 +129,17 @@ class Recorder:
         shown: Any,
         edits: tuple[str, ...],
         gate: Literal[0, 1] = 0,
+        autopilot: bool = False,
     ) -> ApprovalRecord:
         self.approvals += 1
         return ApprovalRecord(
             approval_id=f"{self.run_id}:gate{gate}:{self.approvals}",
             gate=gate,
             decision=decision,
-            actor="user",
+            actor="policy" if autopilot else "user",
             timestamp=self.now(),
             input_hash=digest(shown),
+            autopilot=autopilot,
             edit_refs=edits,
         )
 
@@ -150,6 +172,101 @@ def gate_payload(route: Route) -> dict[str, Any]:
         "options": ["question", "quick", "excel"],
         "actions": ["confirm", "choose", "redate", "stop"],
     }
+
+
+def proposal_item(proposal: AdjustmentProposal) -> dict[str, Any]:
+    a = proposal.adjustment
+    share = a.materiality_pct_ebit
+    return {
+        "id": a.adjustment_id,
+        "item": a.item,
+        "period_end": str(a.period_end),
+        "direction": a.direction,
+        "amount": a.amount.value,
+        "pct_ebit": share,
+        "confidence": a.confidence,
+        "ambiguous": a.ambiguous,
+        "rationale": a.rationale,
+        "passage": (proposal.passage or "")[:500] or None,
+        "evidence": [f"{c.accession} {c.section}" for c in a.evidence],
+    }
+
+
+def adjustments_payload(state: GraphState) -> dict[str, Any]:
+    """What Gate 1 shows for normalization, as plain data for any interface."""
+    proposals = state.get("proposals", ())
+    bundle = state.get("data")
+    insights = bundle.filing_insights if bundle is not None else None
+    readings = []
+    if insights is not None:
+        for item in (*insights.captive_finance, *insights.tax_items):
+            if item.confidence != "high":
+                readings.append(f"{item.item_id}: {item.description} ({item.confidence})")
+        for security in insights.dilutive_securities:
+            if security.count.prov.confidence != "high":
+                readings.append(
+                    f"{security.security_id}: {security.count.value:,.0f} "
+                    f"({security.count.prov.note or 'filing'}; {security.count.prov.confidence})"
+                )
+    return {
+        "gate": 1,
+        "kind": "adjustments",
+        "items": [proposal_item(p) for p in proposals if p.review],
+        "auto_approved": [proposal_item(p) for p in proposals if not p.review],
+        "flags": [f.model_dump(mode="json") for f in state.get("flags", ())],
+        "readings": readings,
+        "notes": list(state.get("normalizer_notes", ())),
+        "actions": ["approve_all", "decide", "stop"],
+    }
+
+
+def edited(adjustment: Adjustment, amount: float, approval_id: str) -> Adjustment:
+    """The adjustment with the amount the user set at Gate 1 (the direction stays)."""
+    prov = adjustment.amount.prov
+    return adjustment.model_copy(
+        update={
+            "amount": Sourced[float](
+                value=amount,
+                prov=Provenance(
+                    source="user_override",
+                    ref=f"gate 1 {approval_id}",
+                    as_of=prov.as_of,
+                    period_end=prov.period_end,
+                    confidence="high",
+                    note=f"edited at Gate 1 from {adjustment.amount.value:,.0f}",
+                ),
+            )
+        }
+    )
+
+
+def normalized_update(
+    state: GraphState, approved: tuple[Adjustment, ...], rec: "Recorder"
+) -> dict[str, Any]:
+    """Normalize the history with the approved adjustments and the filing's rates."""
+    bundle = state["data"]
+    update: dict[str, Any] = {
+        "approved_adjustments": approved,
+        "adjustments_decided": True,
+        "done": state.get("done", ()) + ("normalize",),
+    }
+    if bundle.raw is None:
+        rec.event("normalizer", "warning", "No raw financials: nothing to normalize")
+        return update
+    tax, _ = marginal_tax_rate(bundle, MARGINAL_TAX)
+    policy = Policy(marginal_tax_rate=tax.value, lease_rate=lease_rate(bundle, Policy().lease_rate))
+    try:
+        normalized, issues = normalize(bundle.raw, policy, approved)
+    except NormalizationError as error:
+        rec.event("normalizer", "warning", f"Normalization failed: {error}")
+        return update
+    rec.event(
+        "normalizer",
+        "state_change",
+        f"Normalized {len(normalized.annual)} years with {len(approved)} approved adjustments",
+        outputs=normalized,
+    )
+    return {**update, "normalized": normalized, "normalize_issues": issues}
 
 
 def next_step(state: GraphState) -> str | None:
@@ -373,6 +490,177 @@ def build_graph(
                 rec.event("wacc", "warning", "Model choice rejected: " + decision.rejected)
         return update
 
+    def normalize_node(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        start = time.monotonic()
+        done = state.get("done", ()) + ("normalize",)
+        bundle = state.get("data")
+        if bundle is None or services.normalize is None:
+            rec.event("normalizer", "warning", "Normalization not available; step skipped")
+            return {"done": done}
+        try:
+            proposals, flags, notes = services.normalize(bundle)
+        except Exception as error:  # a failed reading must not end the valuation
+            rec.event("normalizer", "warning", f"No adjustments proposed: {error}")
+            return normalized_update(state, (), rec)
+        rec.event(
+            "normalizer",
+            "llm_call",
+            f"{len(proposals)} adjustments proposed "
+            f"({sum(p.review for p in proposals)} for Gate 1); {len(flags)} items flagged",
+            outputs=[p.adjustment.model_dump(mode="json") for p in proposals],
+            seconds=time.monotonic() - start,
+        )
+        update: dict[str, Any] = {
+            "proposals": proposals,
+            "flags": flags,
+            "normalizer_notes": notes,
+            "adjustments_decided": False,
+        }
+        if any(p.review for p in proposals) or flags:
+            return update  # dispatch sends the session to Gate 1
+        # Small, confident adjustments are approved by policy, each on the record.
+        approvals = tuple(
+            rec.approval("approved", proposal_item(p), (), gate=1, autopilot=True)
+            for p in proposals
+        )
+        return {
+            **update,
+            **normalized_update(state, tuple(p.adjustment for p in proposals), rec),
+            "approvals": approvals,
+        }
+
+    def adjustment_review(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        shown = adjustments_payload(state)
+        try:
+            decision = AdjustmentDecision.model_validate(interrupt(shown))
+        except ValidationError as error:
+            rec.event("normalizer", "warning", "Gate 1 answer not understood: " + str(error))
+            return {}
+        reviewed = [p for p in state.get("proposals", ()) if p.review]
+        ids = {p.adjustment.adjustment_id for p in reviewed}
+        if decision.action == "decide":
+            named = {*decision.approve, *decision.reject, *decision.edit}
+            if named != ids:
+                rec.event(
+                    "normalizer",
+                    "warning",
+                    "Give one verdict for every adjustment shown; missing: "
+                    + ", ".join(sorted(ids - named))
+                    + ("; unknown: " + ", ".join(sorted(named - ids)) if named - ids else ""),
+                )
+                return {}
+        rec.event("normalizer", "human_decision", decision.model_dump_json(), inputs=shown)
+        if decision.action == "stop":
+            return {
+                "status": "stopped",
+                "answer": "Stopped at the adjustments review.",
+                "approvals": (rec.approval("rejected", shown, (), gate=1),),
+            }
+        approvals = []
+        approved: list[Adjustment] = []
+        for proposal in state.get("proposals", ()):
+            a, item = proposal.adjustment, proposal_item(proposal)
+            if not proposal.review:
+                approvals.append(rec.approval("approved", item, (), gate=1, autopilot=True))
+                approved.append(a)
+            elif decision.action == "approve_all" or a.adjustment_id in decision.approve:
+                approvals.append(rec.approval("approved", item, (), gate=1))
+                approved.append(a)
+            elif a.adjustment_id in decision.edit:
+                amount = decision.edit[a.adjustment_id]
+                record = rec.approval(
+                    "edited", item, (f"{a.adjustment_id}:amount={amount:.0f}",), gate=1
+                )
+                approvals.append(record)
+                approved.append(edited(a, amount, record.approval_id))
+            else:
+                approvals.append(rec.approval("rejected", item, (), gate=1))
+        return {
+            **normalized_update(state, tuple(approved), rec),
+            "approvals": tuple(approvals),
+        }
+
+    def history(state: GraphState) -> NormalizedFinancials | None:
+        """The normalized history (with Gate 1 adjustments), or the raw one normalized now."""
+        normalized = state.get("normalized")
+        bundle = state.get("data")
+        if normalized is not None or bundle is None or bundle.raw is None:
+            return normalized
+        tax, _ = marginal_tax_rate(bundle, MARGINAL_TAX)
+        policy = Policy(marginal_tax_rate=tax.value, lease_rate=lease_rate(bundle, 0.05))
+        try:
+            return normalize(bundle.raw, policy)[0]
+        except NormalizationError:
+            return None
+
+    def forecast_node(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        start = time.monotonic()
+        done = state.get("done", ()) + ("forecast",)
+        bundle, wacc, normalized = state.get("data"), state.get("wacc"), history(state)
+        if services.forecast is None or bundle is None or wacc is None or normalized is None:
+            rec.event("forecast", "warning", "Forecast needs data, WACC and history; skipped")
+            return {"done": done}
+        try:
+            scenarios, notes = services.forecast(bundle, normalized, wacc)
+        except Exception as error:  # a failed forecast is explained, not fatal
+            rec.event("forecast", "warning", f"No forecast: {error}")
+            return {"done": done, "forecast_notes": (str(error),)}
+        rec.event(
+            "forecast",
+            "llm_call",
+            f"Scenarios {'built' if scenarios else 'not built'}; {len(notes)} notes",
+            outputs=scenarios,
+            seconds=time.monotonic() - start,
+        )
+        for note in notes:
+            if note.startswith("Gate 2"):
+                rec.event("forecast", "warning", note)
+        update: dict[str, Any] = {"done": done, "forecast_notes": notes}
+        if scenarios is not None:
+            update["forecast"] = scenarios
+        return update
+
+    def value_node(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        start = time.monotonic()
+        done = state.get("done", ()) + ("value",)
+        bundle, wacc, scenarios = state.get("data"), state.get("wacc"), state.get("forecast")
+        if bundle is None or wacc is None or scenarios is None:
+            rec.event("engine", "warning", "Valuation needs data, WACC and scenarios; skipped")
+            return {"done": done}
+        try:
+            valuation = value_scenarios(bundle, scenarios, wacc, MARGINAL_TAX)
+        except Exception as error:  # an engine guardrail is explained, not fatal
+            rec.event("engine", "warning", f"Not valued: {error}")
+            return {"done": done}
+        rec.event(
+            "engine",
+            "tool_call",
+            f"Weighted value per share {valuation.weighted:,.2f} "
+            f"(range {valuation.low:,.2f} to {valuation.high:,.2f})",
+            outputs=valuation,
+            seconds=time.monotonic() - start,
+        )
+        return {"done": done, "valuation": valuation}
+
+    def excel_node(state: GraphState, rec: Recorder) -> dict[str, Any]:
+        done = state.get("done", ()) + ("excel",)
+        bundle, wacc = state.get("data"), state.get("wacc")
+        scenarios, valuation = state.get("forecast"), state.get("valuation")
+        if services.models is None or None in (bundle, wacc, scenarios, valuation):
+            rec.event("engine", "warning", "Workbook not written (no valuation or no folder)")
+            return {"done": done}
+        assert bundle is not None and wacc is not None and scenarios is not None
+        assert valuation is not None
+        request = bundle.request
+        out = services.models / f"{request.ticker}-{request.valuation_date}.xlsx"
+        try:
+            write_workbook(bundle, scenarios, wacc, valuation, history(state), MARGINAL_TAX, out)[0]
+        except Exception as error:  # the valuation stands without its workbook
+            rec.event("engine", "warning", f"Workbook not written: {error}")
+            return {"done": done}
+        rec.event("engine", "tool_call", f"Workbook written: {out}")
+        return {"done": done, "valuation": valuation.model_copy(update={"workbook": str(out)})}
+
     def unwired(state: GraphState, rec: Recorder) -> dict[str, Any]:
         step = next_step(state)
         assert step is not None
@@ -407,9 +695,14 @@ def build_graph(
         if intent not in PLANS:
             rec.event("router", "warning", f"{intent} ({INTENTS[intent]}) arrives in a later phase")
         # Steps whose results the session already holds are not run again.
-        done = tuple(
-            step for step in ("data", "wacc") if step in plan and state.get(step) is not None
-        )
+        held = {
+            "data": "data",
+            "normalize": "adjustments_decided",
+            "wacc": "wacc",
+            "forecast": "forecast",
+            "value": "valuation",
+        }
+        done = tuple(step for step, field in held.items() if step in plan and state.get(field))
         updated = ValuationRequest.model_validate(
             {**request.model_dump(), "intent": intent, "question": question, "plan": plan}
         )
@@ -439,6 +732,8 @@ def build_graph(
         review = state.get("data_review")
         if review is not None and review.status == "ask_user" and not state.get("data_decision"):
             return "data_review"
+        if state.get("adjustments_decided") is False:
+            return "adjustment_review"
         step = next_step(state)
         if step is None:
             return END
@@ -451,6 +746,11 @@ def build_graph(
         ("gate0", gate0),
         ("data_review", data_review),
         ("data", data_node),
+        ("normalize", normalize_node),
+        ("adjustment_review", adjustment_review),
+        ("forecast", forecast_node),
+        ("value", value_node),
+        ("excel", excel_node),
         ("wacc", wacc_node),
         ("answer", answer_node),
         ("unwired", unwired),
@@ -463,8 +763,35 @@ def build_graph(
         return "followup" if finished else "router"
 
     graph.add_conditional_edges(START, entry, ["router", "followup"])
-    targets = ["gate0", "data_review", "data", "wacc", "answer", "unwired", "halt", END]
-    for name in ("router", "followup", "gate0", "data", "data_review", "wacc", "unwired"):
+    targets = [
+        "gate0",
+        "data_review",
+        "data",
+        "normalize",
+        "adjustment_review",
+        "wacc",
+        "forecast",
+        "value",
+        "excel",
+        "answer",
+        "unwired",
+        "halt",
+        END,
+    ]
+    for name in (
+        "router",
+        "followup",
+        "gate0",
+        "data",
+        "data_review",
+        "normalize",
+        "adjustment_review",
+        "wacc",
+        "forecast",
+        "value",
+        "excel",
+        "unwired",
+    ):
         graph.add_conditional_edges(name, dispatch, targets)
     graph.add_edge("answer", END)
     graph.add_edge("halt", END)
