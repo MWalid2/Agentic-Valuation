@@ -41,6 +41,8 @@ STEPS = {
     "gate0": "Confirmation",
     "data": "Collecting SEC filings, prices, FRED and Damodaran data",
     "data_review": "Data review",
+    "normalize": "Reading the filings for one-off items",
+    "adjustment_review": "Adjustments review",
     "wacc": "Computing the cost of capital",
     "unwired": "Skipping a step not available yet",
     "answer": "Writing the answer",
@@ -139,7 +141,7 @@ class Chat:
             gate = pending_gate(self.graph, self.session) if self.session else None
             if gate is None:
                 break
-            decision = self.gate0(gate) if gate["gate"] == 0 else self.gate1(gate)
+            decision = self.decide(gate)
             payload = Command(resume=decision)
         self.show_answer()
 
@@ -153,7 +155,7 @@ class Chat:
                     if node.startswith("__") or node not in STEPS:
                         continue
                     elapsed = time.monotonic() - started
-                    if node not in ("gate0", "data_review"):
+                    if node not in ("gate0", "data_review", "adjustment_review"):
                         self.console.print(f"  [green]done[/] {STEPS[node]} ({elapsed:.1f}s)")
                     started = time.monotonic()
                 upcoming = self.graph.get_state(config).next
@@ -209,6 +211,58 @@ class Chat:
                 decision["question"] = self.ask("Your question: ").strip() or "Show the latest data"
         return decision
 
+    def decide(self, gate: dict[str, Any]) -> dict[str, Any]:
+        if gate["gate"] == 0:
+            return self.gate0(gate)
+        if gate.get("kind") == "adjustments":
+            return self.adjustments(gate)
+        return self.gate1(gate)
+
+    def adjustments(self, gate: dict[str, Any]) -> dict[str, Any]:
+        """Gate 1 on proposed EBIT adjustments: approve all, decide each, or stop."""
+        self.show_adjustments(gate)
+        items = gate["items"]
+        if not items:
+            answer = self.ask("Enter to continue, or 'stop': ").strip().lower()
+            return {"action": "stop" if answer == "stop" else "approve_all"}
+        answer = self.ask("a) approve all  d) decide each  s) stop [a]: ").strip().lower()
+        if answer in ("s", "stop"):
+            return {"action": "stop"}
+        if answer not in ("d", "decide"):
+            return {"action": "approve_all"}
+        approve: list[str] = []
+        reject: list[str] = []
+        edit: dict[str, float] = {}
+        for n, item in enumerate(items, 1):
+            while True:
+                reply = (
+                    self.ask(
+                        f"{n}. {item['item']} {item['period_end']}: approve, reject, or "
+                        "'edit <amount in $M>' [approve]: "
+                    )
+                    .strip()
+                    .lower()
+                )
+                word, _, rest = reply.partition(" ")
+                if word in ("", "a", "approve"):
+                    approve.append(item["id"])
+                elif word in ("r", "reject"):
+                    reject.append(item["id"])
+                elif word in ("e", "edit"):
+                    try:
+                        amount = float(rest.replace(",", "")) * 1e6
+                    except ValueError:
+                        self.console.print("Give the amount in millions, e.g. 'edit 250'.")
+                        continue
+                    if amount < 0:
+                        self.console.print("The amount is a size; the direction stays.")
+                        continue
+                    edit[item["id"]] = amount
+                else:
+                    continue
+                break
+        return {"action": "decide", "approve": approve, "reject": reject, "edit": edit}
+
     def gate1(self, gate: dict[str, Any]) -> dict[str, Any]:
         self.console.print(
             Panel(gate["question"] or "", title="Data review", border_style="yellow")
@@ -217,6 +271,39 @@ class Chat:
         return {"action": "stop" if answer == "stop" else "continue"}
 
     # Display ----------------------------------------------------------------------------
+
+    def show_adjustments(self, gate: dict[str, Any]) -> None:
+        table = Table("#", "Period", "Item", "EBIT", "% of EBIT", "Confidence")
+        for n, item in enumerate(gate["items"], 1):
+            sign = "+" if item["direction"] == "increase" else "-"
+            share = f"{item['pct_ebit']:.1%}" if item["pct_ebit"] is not None else ""
+            flag = " [yellow](ambiguous)[/]" if item["ambiguous"] else ""
+            table.add_row(
+                str(n),
+                item["period_end"],
+                item["item"],
+                f"{sign}${item['amount'] / 1e6:,.0f}M",
+                share,
+                item["confidence"] + flag,
+            )
+        self.console.print(
+            Panel(table, title="Gate 1: proposed EBIT adjustments", border_style="yellow")
+        )
+        for n, item in enumerate(gate["items"], 1):
+            self.console.print(f"[bold]{n}.[/] {item['rationale']}")
+            if item["passage"]:
+                self.console.print(f"   [dim]Filing: {item['passage'][:300]}[/]")
+        if gate["auto_approved"]:
+            self.console.print(
+                f"{len(gate['auto_approved'])} small adjustments approved by policy: "
+                + ", ".join(f"{i['item']} {i['period_end']}" for i in gate["auto_approved"])
+            )
+        for flag in gate["flags"]:
+            self.console.print(
+                f"[yellow]Kept in EBIT, check:[/] {flag['item']}: {flag['rationale']}"
+            )
+        for reading in gate["readings"]:
+            self.console.print(f"[yellow]Filing reading to check:[/] {reading}")
 
     def show_gate0(self, gate: dict[str, Any]) -> None:
         table = Table(show_header=False, box=None)
@@ -302,6 +389,13 @@ class Chat:
         review = values.get("data_review")
         if review is not None:
             table.add_row("Data review", f"{review.status}; {len(review.steps)} steps")
+        if values.get("proposals") is not None:
+            table.add_row(
+                "Adjustments",
+                f"{len(values.get('approved_adjustments', ()))} approved of "
+                f"{len(values['proposals'])} proposed"
+                + ("" if values.get("adjustments_decided") else " [yellow](awaiting Gate 1)[/]"),
+            )
         decision = values.get("wacc_decision")
         if decision is not None:
             table.add_row(
@@ -325,7 +419,7 @@ class Chat:
         gate = pending_gate(self.graph, self.session)
         if gate is not None:
             self.console.print(f"Session {self.session} is waiting at Gate {gate['gate']}.")
-            decision = self.gate0(gate) if gate["gate"] == 0 else self.gate1(gate)
+            decision = self.decide(gate)
             self.advance(Command(resume=decision))
             return
         values = self.values()

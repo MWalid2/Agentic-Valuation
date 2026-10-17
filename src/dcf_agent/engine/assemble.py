@@ -11,7 +11,7 @@ from datetime import date
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import FinancialConcept, FinancialPeriod
 from dcf_agent.contracts.provenance import Provenance, Sourced
-from dcf_agent.engine.dcf import Option, Shares
+from dcf_agent.engine.dcf import Convertible, Option, Shares
 from dcf_agent.engine.wacc import Regression, WaccInputs
 
 
@@ -147,12 +147,18 @@ def shares_of(bundle: DataBundle, basic: float) -> tuple[Shares, str]:
         for s in securities
         if s.kind in ("option", "warrant") and s.strike_price is not None
     )
-    note = (
-        f"Shares: cover-page count plus {units / 1e6:,.2f}M unvested units and "
-        f"{sum(o.count for o in options) / 1e6:,.2f}M options (treasury stock method) from "
-        "the filings; convertibles are not read yet"
+    converts = tuple(
+        Convertible(principal=s.principal.value, conversion_shares=s.conversion_shares.value)
+        for s in securities
+        if s.kind == "convertible" and s.principal is not None and s.conversion_shares is not None
     )
-    return Shares(basic=basic, rsus=units, options=options), note
+    note = (
+        f"Shares: cover-page count plus {units / 1e6:,.2f}M unvested units, "
+        f"{sum(o.count for o in options) / 1e6:,.2f}M options (treasury stock method) and "
+        f"{sum(c.conversion_shares for c in converts) / 1e6:,.2f}M shares from convertibles "
+        "(if converted) from the filings"
+    )
+    return Shares(basic=basic, rsus=units, options=options, convertibles=converts), note
 
 
 def assemble(

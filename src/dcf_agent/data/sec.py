@@ -57,6 +57,8 @@ class Filing(BaseModel):
     filed: date
     report_date: date | None
     primary_document: str
+    # 8-K item codes, e.g. ("2.02", "9.01"): 2.02 is results of operations (earnings).
+    items: tuple[str, ...] = ()
 
 
 class Fact(BaseModel):
@@ -365,7 +367,11 @@ class SECClient:
                 columns = ("accessionNumber", "form", "filingDate", "reportDate", "primaryDocument")
                 if len({len(block[c]) for c in columns}) != 1:
                     raise ValueError("Unequal filing columns")
-                for acc, form, filed, report, doc in zip(*(block[c] for c in columns), strict=True):
+                codes = block.get("items") or [""] * len(block["accessionNumber"])
+                if len(codes) != len(block["accessionNumber"]):
+                    raise ValueError("Unequal filing columns")
+                rows = zip(*(block[c] for c in columns), codes, strict=True)
+                for acc, form, filed, report, doc, item in rows:
                     filed_date = date.fromisoformat(filed)
                     if filed_date <= as_of:
                         selected[acc] = Filing(
@@ -374,6 +380,7 @@ class SECClient:
                             filed=filed_date,
                             report_date=date.fromisoformat(report) if report else None,
                             primary_document=doc,
+                            items=tuple(c for c in str(item).split(",") if c),
                         )
             return tuple(sorted(selected.values(), key=lambda f: (f.filed, f.accession)))
         except (KeyError, TypeError, ValueError, AttributeError):

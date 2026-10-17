@@ -240,7 +240,8 @@ class DataAgent:
                     f"{len(insights.dilutive_securities)} dilutive securities, "
                     f"{len(insights.lease_liabilities)} lease rates, "
                     f"{len(insights.tax_items)} marginal tax rates, "
-                    f"{len(insights.captive_finance)} captive-finance splits read from the filings",
+                    f"{len(insights.captive_finance)} captive-finance splits, "
+                    f"{len(insights.management_guidance)} guidance items read from the filings",
                 )
                 for note in notes:
                     record("filings", False, note, warning=True)

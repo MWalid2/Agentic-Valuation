@@ -2,7 +2,8 @@
 
 - Dilution: options outstanding (count and weighted-average exercise price, for the
   treasury-stock method) and unvested restricted or performance share units, from the
-  latest filing that tags them at its own balance-sheet date.
+  latest filing that tags them at its own balance-sheet date; convertible notes
+  (principal outstanding and conversion price, by instrument) for the if-converted test.
 - Lease discount rate: the weighted-average operating lease discount rate.
 - Marginal tax rate: the federal statutory rate plus the state and local line of the
   rate reconciliation (net of the federal benefit), averaged over the years shown.
@@ -11,8 +12,7 @@
   every period column adds up across the groups and the consolidated borrowings equal
   the tagged consolidated debt.
 
-Every value carries its filing and fact (or table) as evidence. Convertible securities
-are not read yet.
+Every value carries its filing and fact (or table) as evidence.
 """
 
 import itertools
@@ -46,6 +46,18 @@ UNVESTED = (
     "OptionsNonvestedNumber"
 )
 LEASE_RATE = G + "OperatingLeaseWeightedAverageDiscountRatePercent"
+CONVERSION_PRICE = G + "DebtInstrumentConvertibleConversionPrice1"
+DEBT_AXIS = G + "DebtInstrumentAxis"
+# The principal outstanding of one instrument at the balance-sheet date, in order.
+OUTSTANDING = tuple(
+    G + c
+    for c in (
+        "DebtInstrumentCarryingAmount",
+        "ConvertibleNotesPayable",
+        "LongTermDebt",
+        "DebtInstrumentFaceAmount",
+    )
+)
 LEASE_LIABILITY = G + "OperatingLeaseLiability"
 LEASE_PARTS = (G + "OperatingLeaseLiabilityCurrent", G + "OperatingLeaseLiabilityNoncurrent")
 FEDERAL_RATE = G + "EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate"
@@ -239,6 +251,76 @@ def options(filings: Sequence[Filing], as_of: date) -> tuple[list[DilutiveSecuri
             )
         return securities, []
     return [], ["no options outstanding tagged in the filings"]
+
+
+def instrument(fact: FactRef) -> str | None:
+    return next((m for axis, m in fact.members if axis == DEBT_AXIS), None)
+
+
+def convertibles(
+    filings: Sequence[Filing], as_of: date
+) -> tuple[list[DilutiveSecurity], list[str]]:
+    """Convertible notes outstanding: principal and conversion shares (principal / price)."""
+    notes: list[str] = []
+    for filing in filings:
+        prices = filing.facts(CONVERSION_PRICE)
+        if not prices:
+            continue
+        securities = []
+        seen: set[str] = set()
+        for chunk, price in prices:
+            name = instrument(price)
+            if name is None:
+                notes.append(f"a conversion price in {filing.accession} names no instrument")
+                continue
+            if name in seen or not price.value:
+                continue
+            seen.add(name)
+            principal = next(
+                (
+                    (c, f)
+                    for concept in OUTSTANDING
+                    for c, f in filing.facts(concept)
+                    if instrument(f) == name and f.end == filing.period_end and f.value
+                ),
+                None,
+            )
+            if principal is None:
+                notes.append(f"{short(name)}: nothing outstanding at {filing.period_end}")
+                continue
+            amount, citation = evidence(
+                filing,
+                principal[0],
+                principal[1].value or 0.0,
+                as_of,
+                f"{short(name)} principal outstanding",
+                fact=principal[1],
+            )
+            shares, _ = evidence(
+                filing,
+                chunk,
+                (principal[1].value or 0.0) / price.value,
+                as_of,
+                f"{short(name)}: principal / conversion price {price.value:,.2f}",
+                period_end=filing.period_end,
+                derived=True,
+            )
+            securities.append(
+                DilutiveSecurity(
+                    security_id=f"convertible:{short(name)}",
+                    kind="convertible",
+                    count=shares,
+                    citation=citation,
+                    principal=amount,
+                    conversion_shares=shares,
+                    strike_price=evidence(
+                        filing, chunk, price.value, as_of, "conversion price", fact=price
+                    )[0],
+                )
+            )
+        if securities or notes:
+            return securities, notes
+    return [], []
 
 
 def unvested(filings: Sequence[Filing], as_of: date) -> tuple[list[DilutiveSecurity], list[str]]:
@@ -724,7 +806,7 @@ def read_insights(
     """Insights for the valuation, and the raw financials with any captive split applied."""
     notes: list[str] = []
     securities: list[DilutiveSecurity] = []
-    for reader in (options, unvested):
+    for reader in (options, unvested, convertibles):
         found, why = reader(filings, as_of)
         securities += found
         notes += why

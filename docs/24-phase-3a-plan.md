@@ -442,3 +442,204 @@ rates, amounts and state expense with loss years skipped, lease rate, the
 consolidating table with blanks and a lone financial-services amount, refusal
 when it does not match the tagged debt, the raw-financials update, and the
 valuation using or falling back from the insights). 626 tests pass.
+
+### Step 6: Normalization Agent (built, your review pending, 2026-10-16)
+
+`src/dcf_agent/agents/normalizer.py` proposes EBIT adjustments for the last five
+fiscal years and the TTM; approval and application stay at Gate 1 and in
+`engine.normalize` (which already applies approved `Adjustment`s).
+
+| Part | Implementation |
+|---|---|
+| Candidates (code) | Lines inside operating income on the latest 10-K's income statement whose label names an unusual item (inside = under the operating-income line, or pretax income when there is none, in the issuer's calculation tree; the sign comes from the tree), and us-gaap one-off elements tagged in the notes or cash-flow statement (restructuring, impairments, litigation, disposal gains and losses, acquisition costs), which US GAAP places inside income from operations |
+| Amounts (code) | By fiscal year from the SEC company facts (point in time); TTM = fiscal year + year to date - prior year to date; items below 0.5% of EBIT in every year are skipped |
+| Reading (model) | qwen3:4b (`normalizer` role): three retrieved passages; recurring or one-off, a short reason, and the passage relied on |
+| Rules (code) | In 3 or more of the last 5 years: recurring and kept in EBIT; only an unusual year (at least 3x the median of the other years, and the excess at least 3% of EBIT) has its excess adjusted. In 1-2 years: adjusted unless the model reads it as a recurring cost. A recurring item the cited passage calls one-time or unusual is flagged for Gate 1, never stripped on that reading alone. A detail tagged in the notes inside an adjusted income-statement line is not adjusted twice |
+| Output | `Adjustment` records (charges added back, gains removed) with the tagged amount's filing and the passage as evidence; above 3% of EBIT, low confidence or ambiguous goes to Gate 1 |
+
+**Found while calibrating** (on the five review companies, before the review):
+the model labels almost everything one-off, even when its own reason says "a
+pattern of recurring charges", and calls impairments non-operating. Letting it
+overturn the recurrence rule stripped Coca-Cola's other operating charges and
+Nike's yearly impairments in every year; checking that the cited passage says
+"one-time" or "unusual" was not enough either (Deere's "Special Items" note
+contains those words but is about other items). The model therefore cannot
+strip a recurring item; spikes are found by code. Its operating/non-operating
+label was dropped.
+
+**Review set** (`scripts/review_normalization.py` writes
+`evals/normalization/review.md`): Coca-Cola, Nike, Boeing, Caterpillar, Deere;
+13 candidates, 8 proposed, 11 period adjustments, all at Gate 1 (each above 3%
+of EBIT or low confidence). Acceptance (at most one false positive per company)
+was decided by your review (below).
+
+**Review result (2026-10-17, `evals/normalization/reviewed-2026-10-17.md`).** 13
+items:
+- **Correct:** 11.
+- **False positive:** 1. Nike's FY2026 severance amount: the tag gives $300M, the filing states $385M.
+- **Missed adjustments:** 1 item, Coca-Cola's "other operating charges". It recurs, so only the excess over its median was adjusted (+$2,925M in 2024). Its Note 18 names large one-offs every year: the fairlife remeasurement ($1,702M in 2023, $3,109M in 2024) and the BodyArmor impairments ($760M, $960M).
+
+Acceptance is met (no company has more than one false positive).
+
+**Fix after the review.** For a recurring line on the income statement, code now
+reads the components the filing names right after the line's total for the year
+("$3,109 million related to the remeasurement of ..."), and adjusts those that
+are one-offs:
+- adjusted: impairments, remeasurements, litigation, divestitures, transaction costs, indemnification, discontinued operations;
+- kept: programs and amortization;
+- the components must not exceed the total;
+- the excess-over-median rule remains for years without such a breakdown.
+
+Coca-Cola now: +$1,745M (2023), +$4,008M (2024), +$1,137M (2025; its BodyArmor
+impairment is not adjusted twice). The other four companies are unchanged. Not
+fixed: a tagged amount that differs from the text (Nike); Gate 1 lets you edit it.
+
+### Step 7: Gate 1 and chat (done, 2026-10-17)
+
+**Graph.** A `normalize` step (in the plans of history questions, the quick value
+and the full model: I2, I6, I9) runs the Normalization Agent
+(`LiveServices.normalize`). Adjustments that need no review (at most 3% of EBIT,
+not low confidence, not ambiguous) are approved by policy, each recorded as an
+autopilot `ApprovalRecord`. Otherwise the session stops at **Gate 1**
+(`adjustment_review`, an interrupt) showing:
+- every adjustment for review: period, item, EBIT effect, share of EBIT,
+  confidence, rationale, the filing passage and its evidence;
+- the policy-approved ones;
+- recurring items kept in EBIT but flagged;
+- low-confidence filing readings (captive split, summed award types, marginal tax).
+
+The answer (`AdjustmentDecision`) is approve all, decide (one verdict per item:
+approve, reject, or edit with a new amount; incomplete verdicts are refused and
+asked again), or stop. Each verdict is a gate-1 `ApprovalRecord` tied to a hash
+of the item shown; an edit records `id:amount=...` and the new amount is
+`user_override` evidence. The approved adjustments then normalize the history
+(`engine.normalize`, with the filing's marginal tax and lease rate). The session
+checkpoint holds the proposals (`AdjustmentProposal`, `Flag` are registered with
+the serializer), so a chat closed at Gate 1 resumes there. The Phase 2 data
+review keeps its own gate-1 payload; the chat tells them apart by `kind`.
+
+**Answers.**
+- Questions on dilution, lease rates, the tax rate or captive finance (I1, I10) are
+  answered from `FilingInsights`, every figure cited to its fact.
+- "Where does clean EBIT come from" (I10) and history questions (I2) show clean EBIT
+  by year and each approved adjustment with its quoted passage, accession and section.
+- Small dollar amounts now keep their cents (exercise prices).
+
+**Chat.** Gate 1 shows the adjustment table and asks "approve all / decide each /
+stop"; deciding asks per item (Enter approves, "edit 250" sets $250M). `/state`
+reports approved versus proposed adjustments.
+
+**Exit check.**
+- **Scripted sessions** (`tests/test_gate1.py`, 6):
+  - decide with approve, edit and policy approval, and clean EBIT exact;
+  - an incomplete decision asked again;
+  - stop;
+  - no gate when nothing needs review;
+  - restart from the checkpoint at Gate 1;
+  - a follow-up quoting the passages.
+- **Scripted chat** (`tests/test_chat.py`): decide each, with an edit.
+- **Filing-details answer:** `tests/test_insights.py`.
+- 643 tests pass.
+- **Live walkthrough** (Nike, offline cache, qwen3:4b):
+  - Gate 0, then the quick value; 1.5 seconds for the normalizer (cached readings); Gate 1 with two adjustments and the tax reading.
+  - Approve one and edit the other to $250M.
+  - The follow-up "where does the clean EBIT come from?" lists FY2022 to TTM clean EBIT and both adjustments with the severance passage quoted (accession 0000320187-26-000088).
+  - "How many stock options are outstanding?" answers 76.8M at $96.44 and 12.5M units, each cited.
+  - Valuation itself (`value`) is still recorded as not available in this phase.
+
+### Step 8: evaluation and RAFT decision (done, 2026-10-17)
+
+No new long runs (your choice, 2026-10-17): the results below come from the
+measurements already made in Steps 3 to 7. The extraction test split (149
+questions, about 3 to 4 hours on this CPU) was not run.
+
+**Acceptance.**
+
+| Criterion | Target | Result | Status |
+|---|---|---|---|
+| Retrieval | hit@4 at least 90% on at least 100 labelled test questions, 5 or more companies | 0.902 on 225 test questions, 17 companies (RAGAS ID-based context recall 0.898, precision 0.232) | Met (narrowly) |
+| Extraction: reading by the model | debt, lease and share counts at least 90% correct | 96% (24/25 development questions, after the fixes below; 72% at high confidence); was 72% | Met on the development sample (test split not run) |
+| Extraction: safety | confident-wrong at most 2% | 0/25 | Met (development sample) |
+| Extraction: XBRL-backed | at least 99% | 25/25 | Met (development sample) |
+| Noise sensitivity (no judge) | reported | 0/25 after the fixes (was 1/25: Coca-Cola's 2023 antidilutive count) | Reported |
+| Adjustments | at most 1 false positive per company on 5 companies | Your review (2026-10-17): false positives Coca-Cola 0, Nike 1 (an amount), Boeing 0, Caterpillar 0, Deere 0; Coca-Cola's misses fixed afterwards | Met |
+| Narrative faithfulness | reported (0.9 if the judge is validated) | Not measured: the narrative set awaits your review, and no component yet writes narrative answers from passages | Not measured |
+| Valuation use: diluted shares | close to the EPS denominator | Within 3% on 8/8 comparable companies (mean gap 0.30%, against 0.47% for the cover count alone) | Met |
+| Valuation use: Deere | WACC no longer blocked | WACC 8.96%; WACC and equity bridge ready | Met |
+| Phase 1 and 2 checks | unchanged | 111/111 references, balance identity and cohort readiness unchanged; 643 tests pass | Met |
+
+The RAGAS judge (qwen3:4b) agreed with exact truth on 41 of 44 cases (0.93):
+it does not invent support but sometimes misses it. Acceptance therefore rests on
+the exact, ID-based metrics.
+
+**Latency** (this CPU; model calls dominate):
+
+| Stage | Time | Note |
+|---|---|---|
+| Parse a filing into chunks | about 0.35 s | Inline XBRL, once per filing |
+| Index (BM25) | seconds per company | Embeddings optional (about 1 CPU minute per company), off by default |
+| Retrieval | 111 ms median, 160 ms p90 | 60 gold questions, with query expansion and section targeting |
+| Filing insights (dilution, lease rate, tax, captive split) | 0.2 s per company | No model; after indexing |
+| Filings Analyst, one untagged field | 81 s median | 2.3 model calls on average (two prompts, a third on disagreement) |
+| Normalization Agent | about 1 model call per material candidate (2 to 3 per company here) | Cached readings: 1.5 s in the walkthrough |
+| Gate 1 | human time | Excluded from the run budget |
+| Data collection and WACC (Phase 2) | about 6 s and 21 s | Unchanged |
+
+**Known limits.**
+- Extraction is measured on 25 development questions (the test split was not run); the fixes below were made on the errors of that sample, so the test split could be lower.
+- The model's reasons in normalization proposals can ramble or contradict the proposal; the amounts and rules are code.
+- Convertible notes are read only when the conversion price is tagged by instrument (Snowflake); a price not tied to an instrument is skipped with a note.
+- One-off items tagged only with company extension elements are found only when they are a line on the income statement.
+- A TTM amount for a one-off needs year-to-date tags.
+- Narrative questions (guidance, explanations) have a draft gold set but no answering component.
+
+**RAFT decision: not now** (recommendation; Phase 3b stays open).
+
+RAFT fine-tunes the reader on retrieved passages with distractors. Measured
+here:
+- Retrieval is not the bottleneck: 0.90 hit@4.
+- Distractors cause few errors: 1 of 6 wrong readings. Most errors are a wrong row or column in a table the model could see, or a nil value read as the nearest amount.
+- The XBRL-first path reads tagged fields exactly, and the model is used only for what is untagged.
+- Confident errors are already 0%.
+
+RAFT would target a minority of an already-flagged minority, and fine-tuning a
+4B model on this CPU-only machine is not practical. Cheaper fixes for the same
+errors come first:
+- a year-row check for maturity schedules (as the column correction);
+- pairing years with numbers in prose schedules;
+- a larger reader model when one fits.
+
+Revisit RAFT if the test-split extraction stays well below 90% after those
+fixes, or if a GPU becomes available.
+
+### Fixes after the evaluation (2026-10-17)
+
+All in code; the model's prompts are unchanged except where passages now render
+differently.
+
+| Fix | What it does | Effect |
+|---|---|---|
+| Number IDs in prose | IDs are placed in document order with digit boundaries ("3 million, 3 million and 8 million" no longer stacks two IDs on the first number) | Prose readings point at the right numbers |
+| Row label cells | A first cell that is a number gets an ID (schedules laid out by year columns have no row label) | The model can point at every amount |
+| Schedule reader | For maturity fields, the fiscal year's row (or "thereafter"), the year's column, or "2029 – $6,556" in prose; a dash is zero. Used when the model finds nothing or its reading is flagged; a clean reading is kept | Delta, Walmart, Deere, Kenvue right |
+| Prose year correction | A number for another year moves to the same element's number for the fiscal year end (the prose counterpart of the column correction); a quoted number that is a tagged number in the text is that number | Coca-Cola and McDonald's antidilutive counts right |
+| Small quoted numbers | A quoted dollar amount or count below 1,000 without a scale word is rejected | Instacart: a duration no longer read as an amount |
+| Stated charges | A tagged one-off whose year's charge the text states differently ("In fiscal 2026, the Company recognized $385 million of ... severance") uses the stated charge, with both in the rationale | Nike severance $385M (the review's false positive) |
+| Convertibles | Principal outstanding and conversion price by instrument; conversion shares = principal / price; in `Shares.convertibles` for the if-converted test | Snowflake: two notes of $1,150M at $157.50 |
+| Reasons | The model's reason in a proposal is cut to two sentences | Shorter Gate 1 text |
+
+Development calibration after the fixes:
+
+| | Before | After |
+|---|---|---|
+| Correct | 72% | 96% (24/25) |
+| High confidence | 64% | 72% |
+| Confident-wrong | 0% | 0% |
+| Not found | 1 | 1 (Instacart's unrecognized compensation) |
+
+By field: debt 8/8, leases 13/13, dilution 3/4. The Step 5 check is unchanged
+(8/8 within 3%); the normalization review set changes only for Nike ($385M).
+650 tests pass.
+
+**RAFT, revisited:** with the reading errors fixed in code, the case for
+fine-tuning is weaker still; the decision stands (not now).

@@ -100,9 +100,9 @@ def test_restart_from_checkpoint_resumes_the_waiting_gate(tmp_path: Path):
     assert calls.collected == [("KO", "Beverage")]
     assert final["approvals"][0].decision == "edited"
     assert final["approvals"][0].edit_refs == ("industry:Beverage",)
-    # The valuation step is not built yet: recorded and skipped, never silent.
-    assert "value" in final["done"] and "Not available yet" in final["answer"]
-    assert any("value is not available" in (e.rationale or "") for e in final["audit_log"])
+    # Without a forecast service the valuation steps are recorded and skipped, never silent.
+    assert {"forecast", "value"} <= set(final["done"]) and "Not available" in final["answer"]
+    assert any("Forecast needs" in (e.rationale or "") for e in final["audit_log"])
     assert pending_gate(graph, "s2") is None
     saver.conn.close()
 

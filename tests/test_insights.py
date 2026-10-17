@@ -338,3 +338,58 @@ def test_the_valuation_uses_the_filing_insights_and_falls_back_without_them():
     empty = data_bundle(None)
     assert shares_of(empty, 100e6)[0].rsus == 0 and marginal_tax_rate(empty, 0.25)[0].value == 0.25
     assert lease_rate(empty, 0.06) == 0.06
+
+
+def test_questions_about_the_notes_are_answered_from_the_insights():
+    from dcf_agent.agents.answer import render
+
+    found = filing(
+        chunk(
+            (
+                fact(OPTIONS, 2e6),
+                fact(STRIKE, 40.0, unit="USD/shares"),
+                fact(FEDERAL_RATE, 0.21, unit="pure", start=year(END)),
+                fact(STATE_RATE, 0.03, unit="pure", start=year(END)),
+            )
+        )
+    )
+    insights, _, _ = read_insights([found], CIK, AS_OF, None)
+    data = data_bundle(insights)
+    request = data.request.model_copy(
+        update={"question": "How many stock options are outstanding, and the tax rate?"}
+    )
+    reply = render({"request": request, "data": data})
+    assert "Dilutive securities" in reply.body and "$40.00" in reply.body
+    assert "Marginal tax rate 24.00%" in reply.body
+    assert all(f.value.prov.source in ("sec_xbrl", "derived") for f in reply.figures)
+
+
+def test_convertible_notes_by_instrument():
+    from dcf_agent.rag.insights import CONVERSION_PRICE, convertibles
+
+    note = (("us-gaap:DebtInstrumentAxis", "ex:NotesDue2029Member"),)
+    retired = (("us-gaap:DebtInstrumentAxis", "ex:NotesDue2025Member"),)
+    found = filing(
+        chunk(
+            (
+                fact(
+                    CONVERSION_PRICE, 150.0, unit="USD/shares", end=date(2024, 9, 30), members=note
+                ),
+                fact("us-gaap:DebtInstrumentCarryingAmount", 1_500e6, unit="USD", members=note),
+                fact(
+                    CONVERSION_PRICE,
+                    90.0,
+                    unit="USD/shares",
+                    end=date(2020, 9, 30),
+                    members=retired,
+                ),
+            )
+        )
+    )
+    securities, notes = convertibles([found], AS_OF)
+    (security,) = securities
+    assert security.kind == "convertible" and security.principal.value == 1_500e6
+    assert security.conversion_shares.value == 10e6  # 1,500M / $150
+    assert any("nothing outstanding" in n for n in notes)
+    shares, _ = shares_of(data_bundle(read_insights([found], CIK, AS_OF, None)[0]), 100e6)
+    assert [(c.principal, c.conversion_shares) for c in shares.convertibles] == [(1_500e6, 10e6)]

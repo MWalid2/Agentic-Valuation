@@ -100,7 +100,7 @@ LangGraph with Gate 0 and Gate 1 and SQLite checkpoints, a Data Agent loop with
 guarded actions (52-company cohort: every blocker handled or explained, no
 unrecorded change), archived Damodaran copies for past dates, and a terminal chat
 with follow-up questions. Results, latency and known limits:
-[23-phase-2-plan.md](23-phase-2-plan.md). Next: Phase 3.
+[23-phase-2-plan.md](23-phase-2-plan.md). Phase 3a (filings RAG, Normalizer, Gate 1) is in [24-phase-3a-plan.md](24-phase-3a-plan.md); Phase 4 is planned in [25-phase-4-plan.md](25-phase-4-plan.md).
 
 ---
 

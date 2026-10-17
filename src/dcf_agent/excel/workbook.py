@@ -246,8 +246,8 @@ def build_workbook(m: ModelInputs, path: Path) -> Cells:
             ("PV of explicit FCFF", f"=SUM(C13:{last}13)", MONEY),
             ("Enterprise value", "=B23+B22", MONEY),
             ("Equity bridge (signed)", f"={bridge_sum}", MONEY),
-            ("Equity value", "=B24+B25", MONEY),
-            ("Shares", "=Inputs!$B$4", MONEY),
+            ("Equity value", "=B24+B25+D26", MONEY),
+            ("Shares", "=D27", MONEY),
             ("Value per share", "=B26/B27", PER_SHARE),
             ("Terminal share of EV", "=IF(B24<>0,B22/B24,0)", RATE),
         ]
@@ -255,6 +255,18 @@ def build_workbook(m: ModelInputs, path: Path) -> Cells:
             row = 18 + offset
             put(ws, f"A{row}", label, font=BOLD if label == "Value per share" else None)
             put(ws, f"B{row}", formula, fmt)
+        # Dilution is a fixed point (options by the treasury stock method at the value per
+        # share, convertibles if converted): the engine's result is an input here.
+        result = next((r for r in m.results if r.scenario == a.scenario), None)
+        engine_bridge = sum(v.value for v in m.bridge.values())
+        converted = (
+            result.equity_value - (result.enterprise_value + engine_bridge) if result else 0.0
+        )
+        diluted = result.diluted_shares if result else m.basic_shares
+        put(ws, "C26", "Convertible principal converted (engine)")
+        put(ws, "D26", converted, MONEY, INPUT)
+        put(ws, "C27", "Diluted shares (engine: units, options by TSM, convertibles)")
+        put(ws, "D27", diluted, MONEY, INPUT)
         for c in ["B", *cols]:
             ws.column_dimensions[c].width = 16
         cells.value_per_share[a.scenario] = f"'DCF {a.scenario}'!B28"

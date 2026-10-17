@@ -195,6 +195,7 @@ class DataTools:
         # Imported here: the filing parser uses this module's filing selection.
         from dcf_agent.rag.filings import filing_texts
         from dcf_agent.rag.insights import load, read_insights
+        from dcf_agent.rag.releases import guidance_items
 
         if self.filings is None:
             raise DataUnavailable("No filing index configured")
@@ -203,7 +204,14 @@ class DataTools:
         for text in texts:
             self.filings.add(text, cik)
         filings = load(self.filings, [t.accession for t in texts])
-        return read_insights(filings, cik, as_of, raw)
+        insights, raw, notes = read_insights(filings, cik, as_of, raw)
+        # Guidance from the latest earnings releases (8-K Item 2.02, Exhibit 99.1).
+        try:
+            guidance, _, why = guidance_items(self.sec, cik, as_of)
+        except SECError as error:
+            guidance, why = [], [f"earnings releases not read: {error}"]
+        insights = insights.model_copy(update={"management_guidance": tuple(guidance)})
+        return insights, raw, [*notes, *why]
 
     def get_scope(self) -> InputReadiness:
         """v1 scope from SEC metadata and the latest filing's own XBRL."""

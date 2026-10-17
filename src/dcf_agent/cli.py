@@ -10,7 +10,7 @@ equal the engine to the cent per share.
 import argparse
 import json
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,7 @@ from dcf_agent.data.cache import DataUnavailable
 from dcf_agent.data.prices import PriceClient
 from dcf_agent.engine.assemble import Assembled, AssemblyError, assemble, lease_rate
 from dcf_agent.engine.dcf import EngineError, drivers_from, run_dcf, sensitivity, weighted_value
+from dcf_agent.engine.drivers import forecast_years
 from dcf_agent.engine.normalize import NormalizationError, Policy, normalize
 from dcf_agent.engine.wacc import Regression, WaccError, compute_wacc, regression_beta
 from dcf_agent.excel.parity import ParityError, find_soffice, recalculate, verify
@@ -51,14 +52,7 @@ def year_ends(raw: RawFinancials, as_of: date, count: int) -> tuple[date, ...]:
     """Next fiscal year ends after the valuation date, from the company's own calendar."""
     if not raw.annual:
         raise SystemExit("No annual period to infer the fiscal calendar; give year_ends")
-    end = raw.annual[-1].period_end
-    while end <= as_of:
-        end = (
-            end.replace(year=end.year + 1)
-            if not (end.month == 2 and end.day == 29)
-            else (end + timedelta(days=365))
-        )
-    return tuple(end.replace(year=end.year + k) for k in range(count))
+    return forecast_years(raw.annual[-1].period_end, as_of, count)
 
 
 def scenarios(

@@ -183,8 +183,10 @@ def render(hits: list[Hit], index: FilingIndex) -> Rendered:
                     continue
                 shown = []
                 for c, cell in enumerate(row):
-                    if c == 0:
-                        shown.append(cell.text)  # the row label, never the answer
+                    if c == 0 and not NUMBER_CELL.match(cell.text):
+                        # The row label, never the answer; only a row without a label
+                        # (a schedule laid out by year columns) starts with a number.
+                        shown.append(cell.text)
                         continue
                     if not cell.facts and not BLANK.sub("", cell.text):
                         continue  # spacer cells only add noise
@@ -194,12 +196,15 @@ def render(hits: list[Hit], index: FilingIndex) -> Rendered:
                 lines.append(" | ".join(shown))
         else:
             text = chunk.text
+            cursor = 0  # facts follow the document's order: each is placed after the last
             for n, fact in enumerate(chunk.facts, 1):
                 number_id = f"P{p}-N{n}"
-                found = re.search(r"\$?\s?" + re.escape(fact.shown), text) if fact.shown else None
+                pattern = r"\$?\s?(?<![\d.,])" + re.escape(fact.shown) + r"(?![\d])"
+                found = re.compile(pattern).search(text, cursor) if fact.shown else None
                 if found:
                     start, end = found.span()
                     text = f"{text[:start]}[{number_id}] {text[start:end]}{text[end:]}"
+                    cursor = end + len(number_id) + 3
                     out.numbers[number_id] = (chunk, fact)
             lines.append(text)
         parts.append("\n".join(lines))
@@ -223,6 +228,7 @@ def instruction(question: str, period_end: date) -> str:
 
 
 ID = re.compile(r"P\d+-(R\d+-C\d+|N\d+)")
+NUMBER_CELL = re.compile(r"^\s*\(?-?\$?\s*(\d[\d,]*(\.\d+)?|[\-–—]+)\s*%?\)?\s*$")
 BLANK = re.compile(r"[\s​ $%()\-–—]+")
 
 
@@ -302,6 +308,17 @@ class FilingsAnalyst:
             ]
             if len(matches) == 1:
                 cell_id = matches[0]
+            else:
+                # A quoted number that is a tagged number in the text is that number,
+                # preferably the one for the fiscal year end.
+                numbers = [
+                    (nid, f)
+                    for nid, (_, f) in rendered.numbers.items()
+                    if target is not None and parse_number(f.shown) == target
+                ]
+                numbers.sort(key=lambda item: item[1].end != period_end)
+                if numbers:
+                    cell_id = numbers[0][0]
         problems: list[str] = []
         if cell_id in rendered.cells:
             chunk, cell, row = rendered.cells[cell_id]
@@ -327,6 +344,24 @@ class FilingsAnalyst:
             return value, chunk, None, cell_id, problems + ["untagged cell"]
         if cell_id in rendered.numbers:
             chunk, fact = rendered.numbers[cell_id]
+            if fact.end != period_end:
+                # "3, 3 and 8 million in 2025, 2024 and 2023, respectively": the same
+                # element's number for the fiscal year end, from its own tagged period.
+                same_year = next(
+                    (
+                        (nid, f)
+                        for nid, (ch, f) in rendered.numbers.items()
+                        if ch.chunk_id == chunk.chunk_id
+                        and f.concept == fact.concept
+                        and f.end == period_end
+                        and not f.dimensional
+                        and f.unit == fact.unit
+                        and (f.start is None) == (fact.start is None)
+                    ),
+                    None,
+                )
+                if same_year is not None:
+                    cell_id, fact = same_year
             problems += fact_problems(fact, spec_, period_end)
             return fact.value or 0.0, chunk, fact, cell_id, problems
         if quote and len(quote) > 3:
@@ -338,6 +373,8 @@ class FilingsAnalyst:
                     words = [s for w, s in SCALE_WORDS.items() if re.search(rf"\b{w}\b", quote)]
                     table = unit_scale(chunk.units or "", spec_) if chunk.kind == "table" else 1.0
                     value *= words[0] if words else table
+                    if spec_.kind in ("USD", "shares") and abs(value) < 1000:
+                        return None  # a ratio, a duration or a price, not an amount or count
                     return value, chunk, None, "quote", ["read from a quote, not a tagged cell"]
         return None
 
@@ -374,11 +411,18 @@ class FilingsAnalyst:
             if not hits:
                 break
             rendered = render(hits, self.index)
+            schedule = schedule_reading(rendered, spec_, period_end)
             first = self.resolve(
                 self.ask(rendered, spec_.question, period_end), rendered, spec_, period_end
             )
             calls += 1
             if first is None:
+                if schedule is not None:  # the model found nothing; the schedule row did
+                    value, chunk, fact, cell_id, problems = schedule
+                    reason = "read from the schedule row for the year; the model found nothing"
+                    return self.reading(
+                        spec_, chunk, value, fact, "rag", "low", (reason,), cell_id, calls
+                    )
                 continue  # nothing here: read the next passages once
             second = self.resolve(
                 self.ask(rendered, spec_.rephrased, period_end), rendered, spec_, period_end
@@ -401,6 +445,11 @@ class FilingsAnalyst:
                     problems = [*problems, "the first reading was outvoted"]
                 else:
                     problems = [*problems, "readings disagree"]
+            if schedule is not None and problems and not close(schedule[0], value):
+                # A flagged reading the fiscal year's row contradicts: the schedule decides.
+                # A clean reading is kept (the row search can find another table's year).
+                value, chunk, fact, cell_id, _ = schedule
+                problems = ["read from the schedule row for the year; the model pointed elsewhere"]
             confidence: Literal["high", "low"] = "low" if problems else "high"
             return self.reading(
                 spec_, chunk, value, fact, "rag", confidence, tuple(problems), cell_id, calls
@@ -499,6 +548,151 @@ def header_has_year(chunk: Chunk, column: int, period_end: date) -> bool:
 
 def close(a: float, b: float) -> bool:
     return abs(a - b) <= max(1e-9, 0.005 * max(abs(a), abs(b)))
+
+
+# Maturity-schedule fields: the row a value sits in is fixed by the fiscal year.
+SCHEDULE: tuple[tuple[str, int | None], ...] = (
+    ("AfterYearFive", None),
+    ("NextTwelveMonths", 1),
+    ("YearTwo", 2),
+    ("YearThree", 3),
+    ("YearFour", 4),
+    ("YearFive", 5),
+)
+DASH = re.compile(r"^\s*[\-\u2013\u2014]+\s*$")
+Found = tuple[float, Chunk, FactRef | None, str, list[str]]
+
+
+def schedule_row(spec_: FieldSpec, period_end: date) -> tuple[re.Pattern[str], int | None] | None:
+    """The row label of a maturity-schedule field (its calendar year, or "thereafter")."""
+    for key, offset in SCHEDULE:
+        if spec_.field_id.endswith(key):
+            if offset is None:
+                return re.compile(r"^\s*(thereafter|after\b|later years)", re.I), None
+            year = period_end.year + offset
+            return re.compile(rf"^\s*(fiscal\s+(year\s+)?)?{year}\b", re.I), year
+    return None
+
+
+def schedule_kind(spec_: FieldSpec) -> tuple[re.Pattern[str], re.Pattern[str] | None]:
+    """(what the table is about, which column) for a schedule field."""
+    name = spec_.field_id
+    if "OperatingLease" in name:
+        return re.compile(r"lease", re.I), re.compile(r"operating", re.I)
+    if "FinanceLease" in name:
+        return re.compile(r"lease", re.I), re.compile(r"financ", re.I)
+    return re.compile(r"debt|borrowing|notes|principal|maturit", re.I), None
+
+
+def by_year_column(
+    chunk: Chunk, p: int, year_label: re.Pattern[str], spec_: FieldSpec
+) -> list[Found]:
+    """A schedule laid out by year columns: the year's column in its one row of amounts."""
+    out: list[Found] = []
+    for h, header in enumerate(chunk.rows[: max(chunk.header_rows, 1)]):
+        texts = [x.text.strip() for x in header]
+        columns = [i for i, t in enumerate(texts) if t and year_label.search(t)]
+        years = [t for t in texts if re.fullmatch(r"(19|20)\d\d|thereafter", t, re.I)]
+        if len(columns) != 1 or len(years) < 3:
+            continue
+        rows = [
+            (r, cells)
+            for r, cells in enumerate(chunk.rows)
+            if r > h
+            and len(cells) in (len(header), len(header) + 1)
+            and sum(parse_number(x.text) is not None or bool(DASH.match(x.text)) for x in cells)
+            >= 3
+        ]
+        if len(rows) != 1:
+            continue  # several rows of amounts: which one is the field is not known
+        r, cells = rows[0]
+        c = columns[0] + (len(cells) - len(header))
+        cell = cells[c]
+        fact = next((f for f in cell.facts if f.value is not None and not f.dimensional), None)
+        if fact is not None:
+            value = fact.value or 0.0
+        elif DASH.match(cell.text):
+            value = 0.0
+        else:
+            number = parse_number(cell.text)
+            if number is None:
+                continue
+            value = number * unit_scale(chunk.units or "", spec_)
+        out.append((value, chunk, fact, f"P{p}-R{r}-C{c}", []))
+    return out
+
+
+def schedule_reading(rendered: Rendered, spec_: FieldSpec, period_end: date) -> Found | None:
+    """The value in the fiscal year's row of a maturity schedule, when exactly one is shown.
+
+    Tables: the row whose label is the year (or "thereafter"); the column is the one
+    tagged or headed for the field's kind (operating or finance leases), or the only
+    number in the row. A dash is zero. Prose schedules ("2029 - $6,556") pair the year
+    with the tagged number after it.
+    """
+    schedule = schedule_row(spec_, period_end)
+    if schedule is None:
+        return None
+    row_label, year = schedule
+    about, column = schedule_kind(spec_)
+    found: list[Found] = []
+    for p, chunk in enumerate(rendered.chunks, 1):
+        if chunk.kind != "table" or not about.search(chunk.title + " " + chunk.text[:400]):
+            continue
+        found += by_year_column(chunk, p, row_label, spec_)
+        for r, cells in enumerate(chunk.rows):
+            if r < chunk.header_rows or not cells or not row_label.search(cells[0].text):
+                continue
+            # A dash is a nil amount; blanks and spacers are not numbers.
+            numbers = [
+                i
+                for i, x in enumerate(cells)
+                if i > 0 and (parse_number(x.text) is not None or DASH.match(x.text))
+            ]
+            for c in numbers:
+                cell = cells[c]
+                if column is not None:
+                    tagged = any(column.search(f.concept) for f in cell.facts)
+                    headed = any(
+                        c < len(h) and column.search(h[c].text)
+                        for h in chunk.rows[: chunk.header_rows]
+                    )
+                    if not (tagged or headed or len(numbers) == 1):
+                        continue
+                elif len(numbers) > 1 and not any(
+                    f.concept.endswith(spec_.field_id.split(":")[-1]) for f in cell.facts
+                ):
+                    continue  # several numbers and nothing says which: no reading
+                fact = next(
+                    (f for f in cell.facts if f.value is not None and not f.dimensional), None
+                )
+                if fact is not None:
+                    value = fact.value or 0.0
+                elif DASH.match(cell.text):
+                    value = 0.0
+                else:
+                    number = parse_number(cell.text)
+                    if number is None:
+                        continue
+                    value = number * unit_scale(chunk.units or "", spec_)
+                found.append((value, chunk, fact, f"P{p}-R{r}-C{c}", []))
+    if year is not None:
+        for chunk in rendered.chunks:
+            if chunk.kind == "table" or not about.search(chunk.text):
+                continue
+            for m in re.finditer(
+                rf"\b{year}\s*[\u2013\u2014-]+\s*\$?\s*(\d{{1,3}}(?:,\d{{3}})*(?:\.\d+)?)",
+                chunk.text,
+            ):
+                fact = next((f for f in chunk.facts if f.shown == m.group(1) and f.value), None)
+                if fact is not None:
+                    number_id = next(
+                        (k for k, (ch, f) in rendered.numbers.items() if f.fact_id == fact.fact_id),
+                        "prose",
+                    )
+                    found.append((fact.value or 0.0, chunk, fact, number_id, []))
+    values = {round(v, 2) for v, *_ in found}
+    return found[0] if len(values) == 1 else None
 
 
 def year_end_cell(

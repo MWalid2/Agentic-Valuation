@@ -121,3 +121,21 @@ def test_data_review_gate_continues(tmp_path: Path):
     _, out = chat(tmp_path, script, calls, collect=collect)
     assert "Data review" in out and "Blocked; continue?" in out
     assert "cost of capital" in out
+
+
+def test_adjustments_gate_decides_each_item(tmp_path: Path):
+    from test_gate1 import CHARGE, GAIN, SMALL
+    from test_gate1 import services as gate1_services
+
+    saver = open_checkpointer(tmp_path / "chat.sqlite")
+    console = Console(record=True, width=140, file=io.StringIO())
+    graph = build_graph(gate1_services((CHARGE, GAIN, SMALL)), saver)
+    script = Script("Apple, 2026-10-11", "", "2", "d", "", "edit 30", "/state", "/quit")
+    Chat(graph, console, script, saver.conn).run()
+    saver.conn.close()
+    out = console.export_text()
+    assert "Gate 1: proposed EBIT adjustments" in out and "+$100M" in out and "-$50M" in out
+    assert "1 small adjustments approved by policy: Severance" in out
+    assert "Filing: The Restructuring was recorded in 2025." in out
+    assert "3 approved of 3 proposed" in out
+    assert any("edit <amount in $M>" in p for p in script.prompts)
