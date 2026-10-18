@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from dcf_agent.contracts.external import DataBundle
-from dcf_agent.contracts.inputs import FinancialConcept, FinancialPeriod
+from dcf_agent.contracts.inputs import FinancialConcept, FinancialPeriod, within_other_lines
 from dcf_agent.contracts.provenance import Provenance, Sourced
 from dcf_agent.engine.dcf import Convertible, Option, Shares
 from dcf_agent.engine.wacc import Regression, WaccInputs
@@ -48,6 +48,8 @@ def value(period: FinancialPeriod, concept: FinancialConcept) -> Sourced[float] 
     status = period.statuses.get(concept)
     if status is not None and status.status == "not_presented":
         return None
+    if concept == "marketable_securities" and within_other_lines(status):
+        return None  # inside other statement lines: adding it would double count
     reason = f"{status.status}: {status.reason}" if status else "no value or status"
     raise AssemblyError(f"{concept} at {period.period_end} is not usable ({reason})")
 

@@ -1,29 +1,37 @@
 # Agentic Valuation
 
-A local DCF valuation assistant for US non-financial companies. See
-[the documentation](docs/README.md) for the architecture, agents, stack, and
-roadmap. Phases 1 (data layer and valuation core) and 2 (Router, graph, Data and
-WACC agents, terminal chat) are complete; results and known limits are in
-[the Phase 2 plan](docs/23-phase-2-plan.md). Next: Phase 3 (filings RAG,
-Normalization Agent, Gate 1).
+A local DCF valuation assistant for US non-financial companies (not banks, insurers,
+REITs, regulated utilities or pre-revenue companies). It runs on a CPU with local
+models. The models choose and code calculates; every number is sourced and every
+key choice goes through a gate you can review. Phases 0 to 6 are complete; see
+[the documentation](docs/README.md), the [user guide](docs/29-user-guide.md) and
+the [developer guide](docs/30-developer-guide.md). The final evaluation is in
+[the Phase 6 plan](docs/27-phase-6-plan.md):
+
+- golden 20 companies valued unattended, 20/20;
+- a random holdout with no wrong number;
+- a cold full model in about 10 minutes.
 
 ## Using it
 
 ```powershell
-# Chat: name a company and a date, confirm at Gate 0, then ask questions
+# Chat: name a company and a date, confirm at Gate 0, then review Gates 1-3
 uv run python -m dcf_agent.cli chat
-#   you> Coca-Cola, 2026-10-11, what WACC would you use?
-#   commands: /sources /state /resume [id] /new /help /quit
+#   you> Coca-Cola, 2026-10-11
+#   then 1 a question, 2 a quick value, 3 the full model (workbook, memo, report)
+#   commands: /sources /state /assumptions /report /trace /resume [id] /new /help /quit
 #   options: --offline (saved responses only), --mock-model (no Ollama), --session ID
 
-# Full valuation with an assumptions file, Excel workbook and parity check
-uv run python -m dcf_agent.cli value KO 2026-10-11 `
-  --assumptions examples/assumptions/coca-cola.yaml --out outputs/ko-model.xlsx
+# Unattended runs on a cohort (autopilot), resumable, one process per company
+uv run python scripts/run_batch.py scripts/cohorts/golden20.json --chunk 5
 ```
 
-The chat answers data, history, cost-of-capital and provenance questions; every
-number carries a numbered source. Quick value and the Excel model run through
-the `value` command until the Forecast Agent exists (Phase 4).
+Each approved full model is exported to `outputs/reports/<ticker>-<date>/`:
+
+- the memo (HTML and Markdown);
+- the formula workbook;
+- the football-field chart;
+- the audit log and the provenance audit.
 
 Typed application configuration is available through `dcf_agent.config.load_config`.
 See [the configuration guide](docs/07-configuration.md). Provisional model tags

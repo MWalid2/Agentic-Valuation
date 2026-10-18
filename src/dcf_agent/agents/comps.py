@@ -102,6 +102,28 @@ class Figures:
     cik: str
     values: dict[str, Sourced[float]] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    # Names filled from the valuation's own data (not an independent read of the filings).
+    filled: set[str] = field(default_factory=set)
+
+    def fill(self, own: dict[str, Sourced[float]]) -> None:
+        """Missing figures from the valuation's own sourced data; EBITDA rebuilt if needed."""
+        for name, item in own.items():
+            if name not in self.values:
+                self.values[name] = item
+                self.filled.add(name)
+        if "ebitda" not in self.values and "ebit" in self.values and "depreciation" in self.values:
+            ebit, dep = self.values["ebit"], self.values["depreciation"]
+            self.values["ebitda"] = ebit.model_copy(
+                update={
+                    "value": ebit.value + dep.value,
+                    "prov": ebit.prov.model_copy(
+                        update={"note": f"operating income + D&A ({dep.prov.note or ''})"}
+                    ),
+                }
+            )
+            self.filled.add("ebitda")
+        if self.filled:
+            self.notes.append("filled from the valuation's data: " + ", ".join(sorted(self.filled)))
 
     def get(self, name: str) -> float | None:
         item = self.values.get(name)
@@ -448,6 +470,26 @@ class CompsAgent:
         verdicts = {v.ticker.upper(): v for v in reply.verdicts}
         return restore({c.ticker: verdicts.get(c.ticker, keep_all[c.ticker]) for c in found})
 
+    def find(
+        self,
+        ticker: str,
+        industry: str,
+        as_of: date,
+        classification: Sequence[dict[str, str]],
+        revenue: float,
+    ) -> list[Candidate]:
+        """Candidates in the industry and the size band, closest in size first."""
+        year = as_of.year - 1 if as_of.month > 3 else as_of.year - 2
+        return candidates(
+            classification,
+            industry,
+            ticker,
+            self.sec.get_ticker_map(),
+            frame_revenues(self.sec, year),
+            revenue,
+            self.sec.get_company_profile,
+        )
+
     def run(
         self,
         ticker: str,
@@ -456,20 +498,18 @@ class CompsAgent:
         as_of: date,
         classification: Sequence[dict[str, str]],
         dcf_value: float | None,
+        own: dict[str, Sourced[float]] | None = None,
     ) -> tuple[CompsResult, list[Candidate], dict[str, Verdict], Figures]:
+        """Peers, multiples and the implied range; `own` fills the target's missing figures.
+
+        A company whose current registrant is new (a holding reorganization) has few
+        company facts of its own; the valuation's TTM figures then stand in.
+        """
         target = figures(self.sec, self.prices, ticker, cik, as_of)
+        if own:
+            target.fill(own)
         revenue = target.get("revenue") or 0.0
-        year = as_of.year - 1 if as_of.month > 3 else as_of.year - 2
-        revenues = frame_revenues(self.sec, year)
-        found = candidates(
-            classification,
-            industry,
-            ticker,
-            self.sec.get_ticker_map(),
-            revenues,
-            revenue,
-            self.sec.get_company_profile,
-        )
+        found = self.find(ticker, industry, as_of, classification, revenue)
         verdicts = self.review(ticker, industry, found)
         warnings: list[str] = []
         restored = [t for t, v in verdicts.items() if v.keep and v.reason.startswith("restored")]

@@ -1,0 +1,82 @@
+[
+ {
+  "ticker": "BIOA",
+  "cik": "0001709941",
+  "name": "BioAge Labs, Inc.",
+  "sic": "2834",
+  "sic_description": "Pharmaceutical Preparations",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "NEON",
+  "cik": "0000087050",
+  "name": "Neonode Inc.",
+  "sic": "3679",
+  "sic_description": "Electronic Components, NEC",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "FPS",
+  "cik": "0002080126",
+  "name": "Forgent Power Solutions, Inc.",
+  "sic": "3620",
+  "sic_description": "Electrical Industrial Apparatus",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "ABAT",
+  "cik": "0001576873",
+  "name": "AMERICAN BATTERY TECHNOLOGY Co",
+  "sic": "1400",
+  "sic_description": "Mining & Quarrying of  Nonmetallic Minerals (No Fuels)",
+  "state_of_incorporation": "NV"
+ },
+ {
+  "ticker": "CTVA",
+  "cik": "0001755672",
+  "name": "Corteva, Inc.",
+  "sic": "0100",
+  "sic_description": "Agricultural Production-Crops",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "SLDB",
+  "cik": "0001707502",
+  "name": "Solid Biosciences Inc.",
+  "sic": "2836",
+  "sic_description": "Biological Products, (No Diagnostic Substances)",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "ADPT",
+  "cik": "0001478320",
+  "name": "Adaptive Biotechnologies Corp",
+  "sic": "2836",
+  "sic_description": "Biological Products, (No Diagnostic Substances)",
+  "state_of_incorporation": "WA"
+ },
+ {
+  "ticker": "SYY",
+  "cik": "0000096021",
+  "name": "SYSCO CORP",
+  "sic": "5140",
+  "sic_description": "Wholesale-Groceries & Related Products",
+  "state_of_incorporation": "DE"
+ },
+ {
+  "ticker": "NUMD",
+  "cik": "0001543637",
+  "name": "Nu-Med Plus, Inc.",
+  "sic": "3841",
+  "sic_description": "Surgical & Medical Instruments & Apparatus",
+  "state_of_incorporation": "UT"
+ },
+ {
+  "ticker": "HNRG",
+  "cik": "0000788965",
+  "name": "HALLADOR ENERGY CO",
+  "sic": "4911",
+  "sic_description": "Electric Services",
+  "state_of_incorporation": "CO"
+ }
+]

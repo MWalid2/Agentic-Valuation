@@ -135,3 +135,80 @@ def test_chat_sign_off_commands_and_text_football_field():
         50.0,
     )
     assert "30.00-60.00" in text and "^ price 50.00" in text and "|" in text
+
+
+def chat_run(tmp_path: Path, graph, saver, *answers: str) -> str:
+    import io
+
+    from rich.console import Console
+    from test_chat import Script
+
+    from dcf_agent.chat import Chat
+
+    console = Console(record=True, width=160, file=io.StringIO())
+    Chat(graph, console, Script(*answers), saver.conn).run()
+    saver.conn.close()
+    return console.export_text()
+
+
+def test_a_chat_session_signs_off_and_lists_the_report_assumptions_and_trace(tmp_path: Path):
+    graph, saver, data = graph_for(tmp_path)
+    out = chat_run(
+        tmp_path,
+        graph,
+        saver,
+        f"{data.request.ticker}, {data.request.valuation_date}",
+        "",  # confirm at Gate 0
+        "3",  # the full model
+        "",  # approve at Gate 2
+        "",  # approve and export at Gate 3
+        "/assumptions",
+        "/report",
+        "/trace",
+        "/quit",
+    )
+    assert "done Valuing the scenarios" in out and "Weighted value per share" in out
+    assert "done Reviewing the valuation (Critic)" in out and ": Score" in out
+    assert "warning Comps not available in this session" in out
+    assert "Gate 3: sign-off" in out and "done Sign-off and report" in out
+    assert "Report folder:" in out and "memo.md" in out and "model.xlsx" in out
+    assert "Scenario" in out and "Growth y1" in out
+    assert "Trace written:" in out
+    assert "Not completed" not in out
+
+
+def test_a_failed_value_says_what_happened_and_what_to_try(tmp_path: Path):
+    from test_critic import growth_above_rf
+
+    from dcf_agent.agents.forecast import ForecastAgent
+
+    graph, saver, data = graph_for(tmp_path)
+
+    saver.conn.close()
+    from dcf_agent.graph.workflow import Services
+
+    def flawed(b, normalized, wacc, note=None):
+        result = ForecastAgent(None).run(b, normalized, wacc, assemble(b, marginal_tax=0.25))
+        return growth_above_rf({"forecast": result.scenarios, "wacc": wacc})["forecast"], ()
+
+    bad = Services(
+        router=router(),
+        collect=lambda request, industry: (data.model_copy(update={"request": request}), None),
+        wacc=lambda b: (compute_wacc(assemble(b, marginal_tax=0.25).wacc_inputs), None),
+        forecast=flawed,
+        now=lambda: datetime(2026, 10, 15, 12, tzinfo=UTC),
+    )
+    saver = open_checkpointer(tmp_path / "bad.sqlite")
+    graph = build_graph(bad, saver)
+    out = chat_run(
+        tmp_path,
+        graph,
+        saver,
+        f"{data.request.ticker}, {data.request.valuation_date}",
+        "",
+        "2",  # a quick value
+        "",  # approve at Gate 2
+        "/quit",
+    )
+    assert "Not completed" in out and "What happened:" in out and "Not valued" in out
+    assert "edit them at Gate 2" in out

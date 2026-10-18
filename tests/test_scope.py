@@ -45,3 +45,16 @@ def test_missing_profile_and_filing_do_not_block_but_are_noted():
     result = assess_scope(profile(None), None)
     assert result.status == "needs_review"
     assert any("No SIC" in note for note in result.review_notes)
+
+
+def test_regulated_utilities_are_out_of_scope_but_pipelines_and_waste_are_not():
+    for sic, name in (
+        ("4911", "Electric services"),
+        ("4931", "Electric & other services"),
+        ("4924", "Natural gas distribution"),
+        ("4941", "Water supply"),
+    ):
+        utility = assess_scope(profile(sic, name), latest())
+        assert utility.status == "blocked" and "Regulated utility" in utility.missing["scope"][0]
+    for sic in ("4922", "4991", "4953"):  # pipelines, independent power, waste
+        assert assess_scope(profile(sic, "x"), latest()).status == "needs_review"

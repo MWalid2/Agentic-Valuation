@@ -26,6 +26,7 @@ from dcf_agent.contracts.accounting import FilingCitation, FilingItem
 from dcf_agent.contracts.provenance import Provenance, Sourced
 from dcf_agent.data.sec import Filing, SECClient, SECError
 
+SAFE_HTML = html.HTMLParser(no_network=True)  # never fetch external resources
 EARNINGS = "2.02"
 RELEASES = 2  # the latest earnings releases read
 METRICS: tuple[tuple[str, str], ...] = (
@@ -134,7 +135,7 @@ def preceding_text(node: Any, limit: int = 400) -> str:
 
 def lines(document: str) -> tuple[list[str], list[tuple[list[list[str]], str]]]:
     """The release as text lines, and its tables (rows of cells, the text just before)."""
-    tree = cast(Any, html.fromstring(document))
+    tree = cast(Any, html.fromstring(document, parser=SAFE_HTML))
     tables = []
     for table in tree.iter("table"):
         rows = [
@@ -228,7 +229,10 @@ def earnings_releases(
                 as_of,
             )
             rows = cast(
-                list[Any], html.fromstring(index).xpath("//table[contains(@class,'tableFile')]//tr")
+                list[Any],
+                html.fromstring(index, parser=SAFE_HTML).xpath(
+                    "//table[contains(@class,'tableFile')]//tr"
+                ),
             )
             names = []
             for tr in rows:

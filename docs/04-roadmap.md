@@ -169,7 +169,7 @@ with follow-up questions. Results, latency and known limits:
 ## Phase 7: Extensions (backlog)
 
 - Loss-making/high-growth companies (revenue-growth + target-margin convergence, survival probability).
-- Banks/insurers (dividend discount / excess-return), REITs (FFO/AFFO, NAV).
+- Banks/insurers (dividend discount / excess-return), REITs (FFO/AFFO, NAV), regulated utilities (regulated asset base or dividend discount; out of v1 scope since Phase 6).
 - Reverse DCF and Monte Carlo on key drivers.
 - IFRS filers and non-US currencies/risk-free rates and CRP.
 - Multi-company comparison; portfolio-level views.
@@ -196,7 +196,7 @@ with follow-up questions. Results, latency and known limits:
 | Model comparison | Open-model choice per role | Same eval suite, swap models | Choose best per role |
 | Runtime budget | Time and RAM per agent and per full run | `benchmark_llm.py` + per-agent timers | Within the `03-stack.md` budget; regressions flagged |
 
-**Golden set (suggested, varied profiles).** Stable cash generators (Coca-Cola, Procter & Gamble), mega-cap tech (Apple, Microsoft), high growth with heavy reinvestment (NVIDIA), cyclical (Caterpillar, an energy major), retail with big leases (Walmart, Costco), consumer brand (Nike), non-December fiscal year (Apple, Microsoft, Nike). Exclude financials and REITs in v1.
+**Golden set (suggested, varied profiles).** Stable cash generators (Coca-Cola, Procter & Gamble), mega-cap tech (Apple, Microsoft), high growth with heavy reinvestment (NVIDIA), cyclical (Caterpillar, an energy major), retail with big leases (Walmart, Costco), consumer brand (Nike), non-December fiscal year (Apple, Microsoft, Nike). Exclude financials, REITs and regulated utilities in v1.
 
 **Important.** A DCF has no objective "right answer". Evals check mechanics, consistency, grounding, and plausibility, never "matches the market price".
 

@@ -112,3 +112,14 @@ def test_the_latest_tag_wins_and_an_abandoned_tag_is_not_the_latest():
     assert found is not None and found[0] == 9.0 and found[1].end == date(2026, 6, 30)
     assert ttm(facts[:1], REVENUE, AS_OF) is None  # only a 2017 figure: stale
     assert latest(facts, CASH, AS_OF) is None
+
+
+def test_missing_target_figures_are_filled_from_the_valuation_and_marked():
+    target = figures(price=10, shares=100, debt=50)  # a new registrant: few facts
+    own = figures(revenue=400, ebit=60, depreciation=20, debt=999, cash=30).values
+    target.fill(own)
+    assert target.get("revenue") == 400 and target.get("debt") == 50  # own read kept
+    assert target.get("ebitda") == 80  # rebuilt from the filled EBIT and D&A
+    assert target.filled == {"revenue", "ebit", "depreciation", "cash", "ebitda"}
+    assert "filled from the valuation's data" in target.notes[-1]
+    assert implied_per_share("ev_sales", 2, target) == pytest.approx((800 - 50 + 30) / 100)

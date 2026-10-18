@@ -11,6 +11,7 @@ from dcf_agent.contracts.inputs import (
     FinancialConcept,
     FinancialPeriod,
     RawFinancials,
+    within_other_lines,
 )
 from dcf_agent.data.history import measurement_basis
 
@@ -112,6 +113,8 @@ def assess_readiness(
                 kind = status.status if status is not None else "missing"
                 if kind == "not_presented" and concept not in MUST_REPORT:
                     notes.append(f"{label} not presented (evidenced zero)")
+                elif concept == "marketable_securities" and within_other_lines(status):
+                    notes.append(f"{label} inside other statement lines: none deducted")
                 elif kind == "not_disclosed" and concept in UNDISCLOSED_FALLBACK[consumer]:
                     notes.append(f"{label}: {UNDISCLOSED_FALLBACK[consumer][concept]}")
                 else:

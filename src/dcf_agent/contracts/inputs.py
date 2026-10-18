@@ -107,6 +107,19 @@ class ConceptStatus(InputContract):
         return self
 
 
+NOT_A_LINE = "not presented as a statement line"
+
+
+def within_other_lines(status: "ConceptStatus | None") -> bool:
+    """Disclosed in the notes but not a statement line: the amount sits inside other lines.
+
+    Deducting it again (securities from capital, or adding it to cash) would double count.
+    """
+    return (
+        status is not None and status.status == "unresolved" and NOT_A_LINE in (status.reason or "")
+    )
+
+
 class FinancialPeriod(InputContract):
     """Reported historical period with sourced values.
 

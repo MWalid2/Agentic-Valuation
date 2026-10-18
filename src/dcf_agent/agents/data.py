@@ -36,6 +36,23 @@ from dcf_agent.data.sec import SECError
 from dcf_agent.llm import LLMError
 from dcf_agent.tools.data import DataTools, FilingSeed
 
+# Split ratios companies actually use: whole numbers (forward or reverse) and a few
+# fractions. A provider "split" outside these is usually a spin-off or a special
+# distribution recorded as a price adjustment, which must not rescale the share count.
+STANDARD_SPLITS = sorted(
+    {float(n) for n in range(2, 101)}
+    | {1 / n for n in range(2, 101)}
+    | {
+        r
+        for a, b in ((3, 2), (5, 4), (4, 3), (5, 2), (5, 3), (7, 4), (7, 5))
+        for r in (a / b, b / a)
+    }
+)
+
+
+def standard_split(ratio: float) -> bool:
+    return any(abs(ratio - r) <= 0.001 * r for r in STANDARD_SPLITS)
+
 
 def market_from_sources(
     shares: Sourced[float],
@@ -50,9 +67,16 @@ def market_from_sources(
         raise DataUnavailable(
             "Cannot align the SEC share observation with the price and split history"
         )
-    factor = math.prod(
-        s.ratio for s in prices.splits if observed_on < s.observed_on <= close.observed_on
-    )
+    later = [s for s in prices.splits if observed_on < s.observed_on <= close.observed_on]
+    for event in later:
+        if not standard_split(event.ratio):
+            raise DataUnavailable(
+                f"The price provider records a {event.ratio:g}-for-1 adjustment on "
+                f"{event.observed_on}, after the latest SEC share count ({observed_on}). That is "
+                "not a standard split ratio (likely a spin-off or a special distribution), so "
+                "the share count can't be aligned with the price until the next filing"
+            )
+    factor = math.prod(s.ratio for s in later)
     count = shares.value * factor
     prov = Provenance(
         source="derived",

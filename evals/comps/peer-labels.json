@@ -1,0 +1,52 @@
+{
+  "_note": "Hand labels for the comps model comparison (Phase 6 step 5), written 2026-10-17 from business comparability: products, customers and economics. true = a reasonable peer for multiples. Candidates are those found for the valuation date 2026-10-11 (Damodaran industry, size band).",
+  "AAPL": {
+    "DELL": true, "HPQ": true, "HPE": true, "SMCI": true, "CRSR": true,
+    "XRX": false, "NTAP": false, "DBD": false, "IMMR": false, "KODK": false,
+    "_reasons": "Hardware makers kept (PCs, servers, consumer peripherals); printing, enterprise storage, banking machines, haptics licensing and photography dropped"
+  },
+  "BA": {
+    "RTX": true, "LMT": true, "GD": true, "GE": true, "NOC": true, "TXT": true,
+    "HII": true, "TDG": true, "HWM": true, "SARO": true,
+    "_reasons": "All aerospace or defense: GE is GE Aerospace since 2024; HII is a defense prime; Howmet and TransDigm are aerospace component makers"
+  },
+  "CAT": {
+    "CMI": true, "PCAR": true, "WAB": true, "OSK": true, "TEX": true,
+    "CRH": false, "VMC": false, "MLM": false,
+    "_reasons": "Heavy machinery and engines kept (Terex and Oshkosh compete directly); cement and aggregates are customers, not peers"
+  },
+  "DE": {
+    "CNH": true, "AGCO": true, "TTC": true,
+    "BG": false, "ADM": false, "INGR": false, "DAR": false,
+    "_reasons": "Farm and outdoor machinery kept; grain traders and ingredient processors dropped (Damodaran's Farming/Agriculture mixes them)"
+  },
+  "KO": {
+    "PEP": true, "KDP": true, "MNST": true, "COKE": true, "PRMB": true, "CELH": true,
+    "FIZZ": true, "COCO": true, "ZVIA": false, "REED": false,
+    "_reasons": "Branded beverage companies kept; Zevia and Reed's are too small and loss-making to give a meaningful multiple"
+  },
+  "MCD": {
+    "SBUX": true, "DRI": true, "CMG": true, "YUMC": true, "QSR": true, "YUM": true,
+    "TXRH": true, "EAT": true, "ARMK": false, "DASH": false,
+    "_reasons": "Restaurant operators and franchisors kept; contract food service and delivery platforms dropped"
+  },
+  "MSFT": {
+    "ORCL": true, "CRM": true, "ADBE": true, "INTU": true, "NOW": true, "WDAY": true,
+    "PANW": true, "ADSK": true, "SNPS": true, "ROP": false,
+    "_reasons": "Large software companies kept; Roper is a diversified industrial-software holding"
+  },
+  "NKE": {
+    "DECK": true, "CROX": true, "SHOO": true, "WWW": true, "RCKY": true, "BIRD": false,
+    "_reasons": "Footwear brands kept; Smartbird (former Allbirds) is now a computer-services shell"
+  },
+  "NVDA": {
+    "AVGO": true, "INTC": true, "QCOM": true, "MU": true, "AMD": true, "TXN": true,
+    "NXPI": true, "ADI": true, "MRVL": true, "ON": true,
+    "_reasons": "All semiconductor companies; differences in end markets show in the multiples, not in peer status"
+  },
+  "SNOW": {
+    "CRWV": true, "TWLO": true, "AKAM": true, "OKTA": true, "SHOP": true, "MDB": true,
+    "NET": true, "GDDY": false, "RXT": false, "WIX": false,
+    "_reasons": "Cloud and data software kept (MongoDB is the closest); domains and small-business website builders, and low-margin managed hosting, dropped"
+  }
+}

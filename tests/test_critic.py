@@ -166,6 +166,12 @@ def unsourced(s: State) -> State:
     return base_edit(s, change)
 
 
+def margin_impossible(s: State) -> State:
+    return base_edit(
+        s, lambda b: {"operating_margin": tuple(at(m, 3.3) for m in b.operating_margin)}
+    )
+
+
 FLAWS: list[tuple[Callable[[State], State], str]] = [
     (growth_above_rf, "terminal_growth"),
     (growth_above_cap, "terminal_growth"),
@@ -176,6 +182,7 @@ FLAWS: list[tuple[Callable[[State], State], str]] = [
     (tax_not_converging, "tax"),
     (broken_reinvestment, "reinvestment"),
     (margin_far_above, "margin_level"),
+    (margin_impossible, "margin_impossible"),
     (tv_share, "tv_share"),
     (comps_divergence, "comps"),
     (price_unexplained, "price"),
@@ -377,3 +384,16 @@ def test_more_debt_in_the_bridge_than_the_tagged_debt_is_expected():
     state = clean()
     state["comps_target"] = {**state["comps_target"], "debt": state["comps_target"]["debt"] * 0.8}
     assert "bridge" not in checks(state)  # current maturities, paper, finance leases on top
+
+
+def test_a_negative_value_per_share_is_flagged_for_review():
+    state = clean()
+    valuation = state["valuation"]
+    results = tuple(
+        r.model_copy(update={"value_per_share": -5.0}) if r.scenario == "bear" else r
+        for r in valuation.results
+    )
+    state["valuation"] = valuation.model_copy(update={"results": results})
+    issue = next(i for i in review(state).issues if i.issue_id.startswith("negative_value"))
+    assert issue.severity == "medium" and "bear" in issue.description
+    assert "negative_value" not in checks(clean())

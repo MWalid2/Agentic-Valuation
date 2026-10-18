@@ -1,0 +1,22 @@
+[
+  {"ticker": "AAPL", "case": "Reference; 52/53-week September year", "set": "development"},
+  {"ticker": "BA", "case": "Development company (Phases 2-5)", "set": "development"},
+  {"ticker": "CAT", "case": "Captive finance segment inside an industrial", "set": "development"},
+  {"ticker": "DE", "case": "Captive finance; 52/53-week October/November year", "set": "development"},
+  {"ticker": "KO", "case": "Reference; debt combined with finance leases", "set": "development"},
+  {"ticker": "MCD", "case": "Negative equity (shareholders' deficit); heavy leases", "set": "development"},
+  {"ticker": "MSFT", "case": "June fiscal year; large investment portfolio", "set": "development"},
+  {"ticker": "NKE", "case": "Reference; May year; multi-class shares", "set": "development"},
+  {"ticker": "NVDA", "case": "January year; high growth", "set": "development"},
+  {"ticker": "SNOW", "case": "January year; loss-making; no inventory", "set": "development"},
+  {"ticker": "WMT", "case": "January year; heavy leases; noncontrolling interest", "set": "new"},
+  {"ticker": "COST", "case": "52/53-week August/September year; no goodwill emphasis", "set": "new"},
+  {"ticker": "PG", "case": "June year; 'net earnings' wording; noncontrolling interest", "set": "new"},
+  {"ticker": "XOM", "case": "Energy major; noncontrolling interest", "set": "new"},
+  {"ticker": "DAL", "case": "Airline; leases; loss history", "set": "new"},
+  {"ticker": "GEV", "case": "2024 spin-off; short history (replaces DUK: regulated utilities left v1 scope)", "set": "new"},
+  {"ticker": "RIVN", "case": "Loss-making; negative operating income", "set": "new"},
+  {"ticker": "ORCL", "case": "May fiscal year; debt-heavy", "set": "new"},
+  {"ticker": "META", "case": "No inventory; multi-class shares", "set": "new"},
+  {"ticker": "SBUX", "case": "Negative equity; 52/53-week year; heavy leases", "set": "new"}
+]
