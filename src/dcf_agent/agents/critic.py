@@ -136,6 +136,18 @@ def scenario_checks(
             )
             break
     history_high = max(history.margin.numbers, default=None) if history else None
+    extreme = [m for m in margins if abs(m) > 1.0]
+    if extreme:
+        # Operating income larger than revenue: an anchor from a near-zero revenue year.
+        issues.add(
+            "margin_impossible",
+            "high",
+            f"{name}: operating margin {max(extreme, key=abs):.0%}, beyond +/-100% of revenue: "
+            "the forecast rests on a near-zero revenue base",
+            (item.operating_margin[0].prov.ref,),
+            "value the company on a revenue base it can sustain, or outside the v1 DCF",
+            "forecast",
+        )
     if industry_margin is not None and history_high is not None:
         peak = max(margins)
         if peak > max(2 * industry_margin, industry_margin + 0.15) and peak > history_high + 0.02:
@@ -309,6 +321,18 @@ def review(state: dict[str, Any], revision: int = 0) -> CritiqueReport:
             f"DCF value {comps.divergence_vs_dcf:+.0%} from the comps' implied value",
             (comps.calculation_ref, *(p.ticker for p in comps.peers[:3])),
             "explain the gap (growth, margins, risk) or revisit the forecast",
+            "forecast",
+        )
+    negative = [r.scenario for r in valuation.results if r.value_per_share <= 0]
+    if negative:
+        issues.add(
+            "negative_value",
+            "medium",
+            f"value per share at or below zero in {', '.join(negative)} (weighted "
+            f"{valuation.weighted:,.2f}): limited liability floors a share at zero, so claims "
+            "exceed the operating value there",
+            tuple(r.calculation_ref for r in valuation.results if r.scenario in negative),
+            "review the margins and the debt; read the value as option-like, not a price",
             "forecast",
         )
     price = valuation.price

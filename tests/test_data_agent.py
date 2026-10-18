@@ -248,3 +248,18 @@ def test_market_bridge_adjusts_shares_for_splits_and_rejects_opaque_basis(tmp_pa
             prices.model_copy(update={"source": "stooq"}),
             "industry",
         )
+
+
+def test_a_non_standard_provider_split_is_not_applied_to_sec_shares(tmp_path):
+    from dcf_agent.agents.data import standard_split
+
+    assert standard_split(2.0) and standard_split(0.1) and standard_split(1.5)
+    assert not standard_split(6.665)  # Corteva's separation, recorded as a "split"
+    with PriceClient(configuration(tmp_path), loader=lambda *_: prices_body()) as client:
+        prices = client.get_price_history("AAPL", START, CUTOFF)
+    prices = prices.model_copy(
+        update={"splits": (SplitObservation(observed_on=date(2026, 1, 1), ratio=6.665),)}
+    )
+    shares = cover()
+    with pytest.raises(DataUnavailable, match="not a standard split ratio"):
+        market_from_sources(shares.shares, shares.observed_on, prices, "Chemicals")

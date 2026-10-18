@@ -8,8 +8,11 @@ roles:
   # 4b: on ten companies 1.7b averaged betas against its own stated evidence (5/10
   # within 0.3pp of the rule); 4b kept the rule with correct reasons (10/10). docs/23.
   wacc: {model: 'qwen3:4b', size_class: S, num_ctx: 2048, num_predict: 150}
-  comps: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 512}
-  # A separate, larger model reviews the 4b's forecast (docs/26).
+  # 1.7b: the same keep/drop accuracy as 4b on the hand labels (66.7% vs 65.4%) in less than
+  # half the time; 8b timed out on 8 of 10 (docs/27, step 5).
+  comps: {model: 'qwen3:1.7b', size_class: S, num_ctx: 4096, num_predict: 512}
+  # 4b: the 8b caught 3/3 seeded story flaws (4b 1/3) but takes 166 s a call, at the
+  # 180 s limit before the risk passages a real run adds (docs/27, step 5).
   critic: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 400}
   reporter: {model: 'qwen3:4b', size_class: S, num_ctx: 4096, num_predict: 250}
 runtime:

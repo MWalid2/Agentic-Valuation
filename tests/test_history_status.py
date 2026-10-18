@@ -299,3 +299,35 @@ def test_ttm_is_not_disclosed_when_a_quarter_lacks_the_value():
     raw, _ = build_history(seed, facts, filings, extractions=tuple(extractions))
     assert raw.ttm.statuses["interest_expense"].status == "not_disclosed"
     assert "interest_expense" not in raw.ttm.values
+
+
+def test_securities_inside_other_lines_do_not_block_the_bridge():
+    values = {"revenue": 1, "cash": 5, "debt": 2}
+    statuses = {
+        c: "not_presented"
+        for c in (
+            "minority_interest",
+            "preferred_equity",
+            "temporary_equity",
+            "captive_finance_debt",
+        )
+    }
+    ttm = period(statuses, values).model_copy(
+        update={
+            "statuses": {
+                **period(statuses, values).statuses,
+                "marketable_securities": ConceptStatus(
+                    status="unresolved",
+                    reason="marketable securities disclosed in notes but not presented as a "
+                    "statement line",
+                ),
+            }
+        }
+    )
+    report = assess_readiness(RawFinancials(cik="0000000001", as_of=CUTOFF, ttm=ttm), {})
+    assert not any(
+        "marketable_securities" in item
+        for items in report["equity_bridge"].missing.values()
+        for item in items
+    )
+    assert any("inside other statement lines" in n for n in report["equity_bridge"].review_notes)

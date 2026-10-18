@@ -155,3 +155,32 @@ def test_extreme_roic_is_flagged_for_review():
     normalized, issues = normalize(raw(cash_rich))
     assert normalized.annual[0].roic.value > 1
     assert "annual:2025-12-31:roic" in issues
+
+
+def test_a_pre_revenue_company_is_explained_not_a_crash():
+    base = period(2025)
+    values = {k: v for k, v in base.values.items() if k != "revenue"}
+    statuses = {
+        **base.statuses,
+        "revenue": ConceptStatus(status="not_presented", basis="no revenue line"),
+    }
+    pre = base.model_copy(update={"values": values, "statuses": statuses})
+    with pytest.raises(NormalizationError, match="pre-revenue"):
+        normalize(raw(pre))
+
+
+def test_securities_without_a_statement_line_are_not_deducted_twice():
+    base = period(2025)
+    values = {k: v for k, v in base.values.items() if k != "marketable_securities"}
+    statuses = {
+        **base.statuses,
+        "marketable_securities": ConceptStatus(
+            status="unresolved",
+            reason="marketable securities disclosed in notes but not presented as a statement line",
+        ),
+    }
+    normalized, _ = normalize(raw(base.model_copy(update={"values": values, "statuses": statuses})))
+    capital = normalized.annual[0].invested_capital
+    assert "no separate securities line" in (capital.prov.note or "")
+    full, _ = normalize(raw(base))
+    assert capital.value >= full.annual[0].invested_capital.value  # nothing deducted

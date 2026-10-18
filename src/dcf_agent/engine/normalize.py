@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from datetime import date
 
 from dcf_agent.contracts.accounting import Adjustment, NormalizedFinancials, NormalizedPeriod
-from dcf_agent.contracts.inputs import FinancialConcept, FinancialPeriod, RawFinancials
+from dcf_agent.contracts.inputs import (
+    FinancialConcept,
+    FinancialPeriod,
+    RawFinancials,
+    within_other_lines,
+)
 from dcf_agent.contracts.provenance import Provenance, Sourced
 
 US_MARGINAL_TAX = 0.25  # 21% federal plus a typical state rate; override per company.
@@ -88,9 +93,15 @@ def invested_capital(period: FinancialPeriod, policy: Policy) -> tuple[float, st
             "preferred_equity",
             "debt",
             "cash",
-            "marketable_securities",
         ),
     )
+    # Securities that are not a statement line of their own sit inside other lines (cash,
+    # other assets): counting them again would double count, so none is deducted then.
+    securities = amount(period, "marketable_securities")
+    within = within_other_lines(period.statuses.get("marketable_securities"))
+    if securities is None and not within:
+        require(period, ("marketable_securities",))  # genuinely missing: reported, not zero
+    v["marketable_securities"] = securities or 0.0
     total = (
         v["equity"]
         + v["minority_interest"]
@@ -101,6 +112,8 @@ def invested_capital(period: FinancialPeriod, policy: Policy) -> tuple[float, st
         - v["marketable_securities"]
     )
     note = "equity + minority + preferred + temporary equity + debt - cash - securities"
+    if securities is None:
+        note += " (no separate securities line: none deducted)"
     if policy.leases_as_debt:
         leases = amount(period, "operating_lease_liabilities")
         if leases is not None:
@@ -126,6 +139,12 @@ def normalize_period(
     if period.kind not in ("annual", "ttm"):
         raise NormalizationError("Only annual and TTM periods are normalized")
     v = require(period, ("revenue", "ebit", "pretax_income", "income_tax_expense"))
+    if "revenue" not in period.values or v["revenue"] <= 0:
+        raise NormalizationError(
+            f"{period.kind} {period.period_end}: no revenue reported (a pre-revenue company); "
+            "valuing operating cash flows needs revenue, so it is outside v1 "
+            "(pre-revenue and early-stage methods are Phase 7)"
+        )
     ebit = v["ebit"]
     ebit_note = "reported operating income"
     leases = amount(period, "operating_lease_liabilities")

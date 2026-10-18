@@ -8,6 +8,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol, Self
 
@@ -283,6 +284,7 @@ class LocalLLM:
         directory = self.config.settings.resolve_path(self.config.settings.data_dir) / "traces"
         directory.mkdir(parents=True, exist_ok=True)
         entry = {
+            "at": datetime.now(UTC).isoformat(timespec="seconds"),  # to place it in a session
             "role": role,
             "cache_key": key,
             "attempt": attempt + 1,

@@ -22,6 +22,7 @@ from dcf_agent.data.cache import DataUnavailable, SnapshotCache, get_response
 from dcf_agent.data.industry import URL as INDUSTRY_URL
 from dcf_agent.data.industry import IndustryMatch, match_industry, parse_classification
 
+SAFE_HTML = html.HTMLParser(no_network=True)  # never fetch external resources
 BASE = "https://pages.stern.nyu.edu/adamodar/New_Home_Page/"
 # The pages are published under both paths; captures exist for either.
 ARCHIVED_PATHS = (
@@ -53,7 +54,7 @@ def parse_table(
     ref: str | None = None,
 ) -> BenchmarkTable:
     try:
-        tree = html.fromstring(document)
+        tree = html.fromstring(document, parser=SAFE_HTML)
     except (ValueError, etree.ParserError):
         raise DataUnavailable("Invalid Damodaran HTML") from None
     content = _text(tree)
@@ -72,7 +73,7 @@ def parse_table(
             else:
                 release = re.search(
                     r"Data of last full update:\s*([A-Za-z]+ \d{1,2}, 20\d{2})",
-                    _text(html.fromstring(index)),
+                    _text(html.fromstring(index, parser=SAFE_HTML)),
                 )
                 if release:
                     released = datetime.strptime(release[1], "%B %d, %Y").date()

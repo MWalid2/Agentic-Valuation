@@ -20,6 +20,7 @@ from dcf_agent.contracts.accounting import NormalizedFinancials
 from dcf_agent.contracts.external import DataBundle
 from dcf_agent.contracts.inputs import ValuationRequest
 from dcf_agent.contracts.modeling import CompsResult, ForecastScenarios, WACCResult
+from dcf_agent.contracts.provenance import Sourced
 from dcf_agent.contracts.workflow import CritiqueReport
 from dcf_agent.data.damodaran import DamodaranClient
 from dcf_agent.data.fred import FREDClient
@@ -35,6 +36,29 @@ from dcf_agent.tools.data import DataTools, periodic_filings
 
 # US federal 21% plus a typical state rate (Damodaran's US marginal rate).
 MARGINAL_TAX = 0.25
+
+
+def own_figures(bundle: DataBundle) -> dict[str, Sourced[float]]:
+    """The valuation's own TTM figures and market data, under the comps' names."""
+    names = {
+        "revenue": "revenue",
+        "ebit": "ebit",
+        "depreciation": "depreciation_amortization",
+        "net_income": "net_income",
+        "debt": "debt",
+        "cash": "cash",
+    }
+    period = bundle.raw.ttm if bundle.raw is not None else None
+    out: dict[str, Sourced[float]] = {}
+    if period is not None:
+        for name, concept in names.items():
+            item = period.values.get(concept)  # type: ignore[call-overload]
+            if item is not None:
+                out[name] = item
+    if bundle.market is not None:
+        out["shares"] = bundle.market.shares_outstanding
+        out["price"] = bundle.market.close.price
+    return out
 
 
 class LiveServices:
@@ -129,10 +153,13 @@ class LiveServices:
             request.valuation_date,
             classification,
             dcf_value,
+            own_figures(bundle),
         )
-        figures = {name: item.value for name, item in target.values.items()}
+        # The independent read only: values filled from the bundle would check nothing.
+        read = {k: v for k, v in target.values.items() if k not in target.filled}
+        figures = {name: item.value for name, item in read.items()}
         # Period ends (as ordinals), so the Critic compares only like periods.
-        for name, item in target.values.items():
+        for name, item in read.items():
             if item.prov.period_end is not None:
                 figures[f"{name}_end"] = float(item.prov.period_end.toordinal())
         if result.implied_value_range is not None and dcf_value and result.divergence_vs_dcf:

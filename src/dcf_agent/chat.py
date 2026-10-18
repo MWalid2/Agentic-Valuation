@@ -32,6 +32,9 @@ HELP = (
     "(optionally followed by a question). Then ask questions about it.\n"
     "/sources  list the sources of the last answer\n"
     "/state    show the session (company, date, steps, decisions, budget)\n"
+    "/assumptions  show the current scenarios and their values\n"
+    "/report   list the exported report files\n"
+    "/trace    write the session's trace view (steps, model calls, approvals)\n"
     "/resume   list saved sessions; /resume ID switches to one\n"
     "/new      start over with another company\n"
     "/quit     leave (the session is saved)"
@@ -47,7 +50,10 @@ STEPS = {
     "forecast": "Building bear, base and bull scenarios",
     "assumption_review": "Assumptions review",
     "value": "Valuing the scenarios",
+    "comps": "Comparing with peers",
+    "critic": "Reviewing the valuation (Critic)",
     "excel": "Writing the workbook",
+    "report": "Sign-off and report",
     "wacc": "Computing the cost of capital",
     "unwired": "Skipping a step not available yet",
     "answer": "Writing the answer",
@@ -89,6 +95,31 @@ def football_text(ranges: list[dict[str, Any]], price: float | None, width: int 
     if price:
         lines.append(f"{'':34} {' ' * at(price)}^ price {price:,.2f}")
     return "\n".join(lines)
+
+
+def progress(update: Any) -> tuple[str, list[str]]:
+    """A step's result in a few words, and its warnings, from the events it recorded."""
+    events = update.get("audit_log", ()) if isinstance(update, dict) else ()
+    done = [e.rationale for e in events if e.action in ("tool_call", "llm_call") and e.rationale]
+    warned = [e.rationale for e in events if e.action in ("warning", "error") and e.rationale]
+    found = done[-1].split(";")[0][:90] if done else ""
+    return found, [w[:160] for w in warned]
+
+
+def explain(values: dict[str, Any]) -> tuple[str, str] | None:
+    """What went wrong and what to try, when a run did not complete (not when you stopped)."""
+    from dcf_agent.batch import ADVICE, failure_of
+
+    status, request = values.get("status"), values.get("request")
+    if status == "stopped":
+        return None
+    wanted = request is not None and "value" in request.plan
+    if status in ("failed", "budget_exhausted") or (
+        status == "done" and wanted and values.get("valuation") is None
+    ):
+        failure, reason = failure_of(values)
+        return reason or failure, ADVICE.get(failure, "see /state and /trace")
+    return None
 
 
 def sessions(conn: sqlite3.Connection) -> list[str]:
@@ -155,6 +186,12 @@ class Chat:
             self.show_sources()
         elif name == "/state":
             self.show_state()
+        elif name == "/assumptions":
+            self.show_current_assumptions()
+        elif name == "/report":
+            self.show_report()
+        elif name == "/trace":
+            self.write_trace()
         elif name == "/new":
             self.session = None
             self.console.print("New session: name a company and a date.")
@@ -201,7 +238,13 @@ class Chat:
                         "adjustment_review",
                         "assumption_review",
                     ):
-                        self.console.print(f"  [green]done[/] {STEPS[node]} ({elapsed:.1f}s)")
+                        found, warned = progress(update[node])
+                        self.console.print(
+                            f"  [green]done[/] {STEPS[node]} ({elapsed:.1f}s)"
+                            + (f": {escape(found)}" if found else "")
+                        )
+                        for warning in warned:
+                            self.console.print(f"    [yellow]warning[/] {escape(warning)}")
                     started = time.monotonic()
                 upcoming = self.graph.get_state(config).next
                 if upcoming and upcoming[0] in STEPS:
@@ -514,8 +557,69 @@ class Chat:
                 self.console.print(f"[dim]{len(reply.sources)} sources: /sources to list them[/]")
         elif values.get("answer"):
             self.console.print(escape(values["answer"]))
+        explained = explain(values)
+        if explained is not None:
+            what, advice = explained
+            self.console.print(
+                Panel(
+                    f"[bold]What happened:[/] {escape(what)}\n[bold]What to try:[/] {advice}",
+                    title="Not completed",
+                    border_style="yellow",
+                )
+            )
         if status in ("stopped", "failed", "budget_exhausted"):
             self.console.print(f"[yellow]Session {status}.[/] Name a company to start again.")
+
+    def show_current_assumptions(self) -> None:
+        values = self.values()
+        scenarios, valuation = values.get("forecast"), values.get("valuation")
+        if scenarios is None:
+            self.console.print("No scenarios yet: ask for a value first.")
+            return
+        table = Table(
+            "Scenario", "Prob.", "Growth y1", "Margin y5", "Sales/IC", "g", "ROIC", "Value"
+        )
+        for item in scenarios.scenarios:
+            result = valuation.scenario(item.scenario) if valuation is not None else None
+            table.add_row(
+                item.scenario,
+                f"{item.probability:.0%}",
+                f"{item.revenue_growth[0].value:.1%}",
+                f"{item.operating_margin[min(4, len(item.operating_margin) - 1)].value:.1%}",
+                f"{item.sales_to_capital[0].value:.2f}",
+                f"{item.terminal_growth.value:.2%}",
+                f"{item.terminal_roic.value:.1%}",
+                "-" if result is None else f"{result.value_per_share:,.2f}",
+            )
+        self.console.print(table)
+        if valuation is not None:
+            self.console.print(f"Weighted value per share {valuation.weighted:,.2f}")
+
+    def show_report(self) -> None:
+        folder = self.values().get("report_folder")
+        if not folder:
+            self.console.print("No report exported yet (a full model, approved at Gate 3).")
+            return
+        self.console.print(f"Report folder: [bold]{escape(folder)}[/]")
+        for path in sorted(Path(folder).glob("*")):
+            if path.is_file():
+                self.console.print(f"  {escape(path.name)}")
+
+    def write_trace(self) -> None:
+        if self.session is None:
+            self.console.print("No session yet.")
+            return
+        from dcf_agent.report.trace import write_trace
+
+        row = self.conn.execute("PRAGMA database_list").fetchone()
+        db = Path(row[2]) if row and row[2] else Path("data/state/checkpoints.sqlite")
+        out = Path("outputs/traces") / f"{self.session}.html"
+        try:
+            path = write_trace(db, self.session, Path("data/traces/llm.jsonl"), out)
+        except KeyError as error:
+            self.console.print(f"No trace: {escape(str(error))}")
+            return
+        self.console.print(f"Trace written: [bold]{escape(str(path))}[/]")
 
     def show_sources(self) -> None:
         reply = self.values().get("reply")
